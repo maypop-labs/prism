@@ -1,0 +1,80 @@
+# #############################################################################
+#
+# config.yaml
+#
+# This is the primary configuration file for the Maypop Labs PRISM project.
+# If nothing else, you'll possibly need to change the following:
+#
+#   rootPath: Change this to the directory where your cellranger_counts folder
+#       is located. Results will also be written to this path.
+#
+#   rcisTargetPath: This is the folder where databases are stored for use by
+#       RcisTarget, SCENIC, and GENIE3 in the `07 - GRN - Part 01.R` file.
+#
+#   ageVec: This is a vector containing the chronological age of each cell
+#       sample.
+#
+#   nameVec: This is a vector containing the name for each sample.
+#
+#   scenicSpecies: Only change this if you are using sample from a source other
+#       than human. Refer to the online RcisTarget and SCENIC documentation for
+#       more details.
+#
+# #############################################################################
+
+# File Paths
+rootPath: "E:/datasets/omics/skin/"
+rcisTargetPath: "E:/var/rcistarget"
+
+# Experiment outline
+ageVec:
+  - 18
+  - 22
+  - 23
+  - 44
+  - 47
+  - 48
+  - 70
+  - 73
+  - 76
+nameVec:
+  - "18yo"
+  - "22yo"
+  - "23yo"
+  - "44yo"
+  - "47yo"
+  - "48yo"
+  - "70yo"
+  - "73yo"
+  - "76yo"
+  
+# Experiment parameters
+ageCorrelation: 0.6
+cores: 1
+grnEdgeCorrelationThreshold: 0.7
+grnMergeStronglyConnectedComponents: False
+grnOnlyPositiveCorr: False
+grnRemoveTerminalNodes: False
+fdrLevel: 0.05
+geneSwitchesBinarizeCutoff: 0.2
+geneSwitchesR2Cutoff: 0.03
+maxSwitchDEGs: 100000
+minCellTypeNumber: 1000
+minDEGs: 1000
+saveResults: True
+scenicDBs:
+  - "hg38__refseq-r80__500bp_up_and_100bp_down_tss.mc9nr.feather"
+  - "hg38__refseq-r80__10kb_up_and_down_tss.mc9nr.feather"
+scenicSpecies: "hgnc"
+SeuratAssay: "v5"
+verbose: True
+winSizePercent: 0.01
+
+# Plot parameters
+figDPI: 300
+figHeight: 5
+figWidth: 6.5
+hjust: 0.5
+plotAlpha: 0.75
+pointSize: 1.5
+strokeSize: 0.33
