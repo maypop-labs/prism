@@ -38,7 +38,6 @@ cellTrajectory <- showTrajectoryMenu(trajNamesFile)
 cdsPath        <- paste0(monocle3Path, "monocle3_", cellType, "_", cellTrajectory, "_smoothed_geneSwitches")
 degFile        <- paste0(rdsPath, cellType, "_", cellTrajectory, "_switch_degs.rds")
 scenicSaveFile <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_01.rds")
-scenicOutPath  <- paste0(config$rootPath, "results/scenic/")
 
 dir.create(plotPath,      recursive = TRUE, showWarnings = FALSE)
 dir.create(rdsPath,       recursive = TRUE, showWarnings = FALSE)
@@ -83,9 +82,7 @@ scenicOptions <- initializeScenic(
   org           = config$scenicSpecies,
   dbDir         = config$rcisTargetPath,
   dbs           = config$scenicDBs,
-  nCores        = config$cores,
-  datasetTitle  = paste(cellType, cellTrajectory, sep = "_"),
-  resultsFolder = file.path(config$rootPath, "results/scenic")
+  nCores        = config$cores
 )
 
 # --- Filter to DEGs and TFs ---
@@ -95,6 +92,7 @@ unionGenes <- union(degGenes, allTFs)
 exprMat    <- exprMat[intersect(rownames(exprMat), unionGenes), ]
 
 # --- Run SCENIC Pipeline ---
+
 message("Filtering genes and calculating co-expression")
 filteredGenes <- geneFiltering(exprMat, scenicOptions)
 exprMatLog    <- log2(exprMat[filteredGenes, ] + 1)

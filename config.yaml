@@ -51,7 +51,8 @@ nameVec:
 # Experiment parameters
 ageCorrelation: 0.6
 cores: 1
-grnEdgeCorrelationThreshold: 0.7
+grnPositiveThreshold: 0.7
+grnNegativeThreshold: -0.6
 grnMergeStronglyConnectedComponents: False
 grnOnlyPositiveCorr: False
 grnRemoveTerminalNodes: False
