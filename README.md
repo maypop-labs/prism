@@ -68,6 +68,7 @@ The workflow consists of 15 sequential R scripts, each performing a defined step
 - `*.rds`: Intermediate R objects (e.g., Seurat, Monocle3, GRN graphs)
 - `*.tsv`: Summary statistics and perturbation scores
 - `*.png`: Visualization figures
+- `*.graphml`: GRN graphs
 
 ## Helper Scripts
 - `functions.R`: Defines all shared utility functions (entropy, Boolean rule parsing, attractor decoding, etc.)
