@@ -50,6 +50,11 @@ nameVec:
   
 # Experiment parameters
 ageCorrelation: 0.6
+attInitialThreshold: 0.25
+attFinalThreshold: 0.5
+boolMaxRegulators: 3
+boolMinPairs: 5
+boolNetStartStates: 100000
 cores: 1
 grnPositiveThreshold: 0.7
 grnNegativeThreshold: -0.6

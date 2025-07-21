@@ -1,5 +1,5 @@
 # =============================================================================
-# 10 - BoolNet (Refactored)
+# 10 - BoolNet
 #
 # Convert Boolean rules into a BoolNet object, compute attractors,
 # and save the BoolNet network, attractors, and sanitized gene name mapping.
@@ -13,42 +13,49 @@ library(monocle3)
 library(igraph)
 library(dplyr)
 
-# --- Source Helpers ---
+# --- Source functions ---
 source("functions.R")
 
 # --- Options ---
 options(warn = -1)
-options(Seurat.object.assay.version = "v5")
-registerDoParallel(cores = 1)
-saveResults <- TRUE
-useMergedGraph <- FALSE
+config <- yaml::read_yaml("config.yaml")
+options(Seurat.object.assay.version = config$SeuratAssay)
+registerDoParallel(cores = config$cores)
 
 # --- Parameters ---
-cellType       <- "Keratinocytes"
-cellTrajectory <- "Y_447"
+monocle3Path   <- paste0(config$rootPath, "results/monocle3/")
+graphMlPath    <- paste0(config$rootPath, "results/graphml/")
+plotPath       <- paste0(config$rootPath, "results/plots/")
+rdsPath        <- paste0(config$rootPath, "results/rds/")
+tsvPath        <- paste0(config$rootPath, "results/tsv/")
+txtPath        <- paste0(config$rootPath, "results/txt/")
+cellTypes      <- readRDS(paste0(rdsPath, "cell_types.rds"))
+cellType       <- showCellTypeMenu(cellTypes)
+trajNamesFile  <- readRDS(paste0(rdsPath, "retained_trajectories_", cellType, ".rds"))
+cellTrajectory <- showTrajectoryMenu(trajNamesFile)
+cdsPath        <- paste0(monocle3Path, "monocle3_", cellType, "_", cellTrajectory, "_smoothed_geneSwitches")
+degFile        <- paste0(rdsPath, cellType, "_", cellTrajectory, "_switch_degs.rds")
+edgesFile      <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_02_edges.rds")
+graphFile      <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_02.rds")
+rulesFile      <- paste0(rdsPath, cellType, "_", cellTrajectory, "_Boolean_Rules.rds")
+boolnetFile    <- paste0(rdsPath, cellType, "_", cellTrajectory, "_boolnet.rds")
+attractorsFile <- paste0(rdsPath, cellType, "_", cellTrajectory, "_attractors.rds")
+geneMapFile    <- paste0(rdsPath, cellType, "_", cellTrajectory, "_gene_map.rds")
 
-cdsPath        <- paste0("E:/datasets/omics/skin/results/monocle3/monocle3_", cellType, "_", cellTrajectory, "_smoothed_geneSwitches")
-degFile        <- paste0("E:/datasets/omics/skin/results/rds/", cellType, "_", cellTrajectory, "_switch_degs.rds")
-edgesFile      <- paste0("E:/datasets/omics/skin/results/rds/", cellType, "_", cellTrajectory, "_GRN_Part_02_edges.rds")
-graphFile      <- paste0("E:/datasets/omics/skin/results/rds/", cellType, "_", cellTrajectory, "_GRN_Part_02.rds")
-rulesFile      <- paste0("E:/datasets/omics/skin/results/rds/", cellType, "_", cellTrajectory, "_Boolean_Rules.rds")
-
-boolnetSaveFile    <- paste0("E:/datasets/omics/skin/results/rds/", cellType, "_", cellTrajectory, "_boolnet.rds")
-attractorsSaveFile <- paste0("E:/datasets/omics/skin/results/rds/", cellType, "_", cellTrajectory, "_attractors.rds")
-geneMapSaveFile    <- paste0("E:/datasets/omics/skin/results/rds/", cellType, "_", cellTrajectory, "_gene_map.rds")
+dir.create(graphMlPath, recursive = TRUE, showWarnings = FALSE)
+dir.create(plotPath,    recursive = TRUE, showWarnings = FALSE)
+dir.create(rdsPath,     recursive = TRUE, showWarnings = FALSE)
+dir.create(tsvPath,     recursive = TRUE, showWarnings = FALSE)
+dir.create(txtPath,     recursive = TRUE, showWarnings = FALSE)
 
 # --- Load Data ---
-if (!dir.exists(cdsPath)) stop("Monocle3 object directory not found")
-if (!file.exists(degFile)) stop("DEG file not found")
-if (!file.exists(edgesFile)) stop("Edge file not found")
-if (!file.exists(graphFile)) stop("Graph file not found")
-if (!file.exists(rulesFile)) stop("Boolean rule file not found")
+if (!dir.exists(cdsPath)) stop("Monocle3 object directory not found: ", cdsPath)
+if (!file.exists(rulesFile)) stop("Boolean rules RDS file not found: ", graphFile)
 
-cds        <- load_monocle_objects(directory_path = cdsPath)
-degTable   <- readRDS(degFile)
-scenicEdges <- readRDS(edgesFile)
-gMerged    <- readRDS(graphFile)
-boolRules  <- readRDS(rulesFile)
+message("Loading Monocle3 object from: ", cdsPath)
+cds <- load_monocle_objects(directory_path = cdsPath)
+message("Loading Boolean Rules from: ", rulesFile)
+boolRules <- readRDS(rulesFile)
 
 # --- Build BoolNet Rule Table ---
 message("Building BoolNet rule table")
@@ -72,22 +79,25 @@ message("Computing attractors with BoolNet")
 attractors <- getAttractors(
   boolnet,
   method = "random",
-  startStates = 100000,
+  startStates = config$boolNetStartStates,
   returnTable = TRUE,
   type = "synchronous"
 )
 
+cat("\014")
+cat("\n")
+
 # --- Save Outputs ---
-if (saveResults) {
-  message("Saving BoolNet object")
-  saveRDS(boolnet, file = boolnetSaveFile)
+if (config$saveResults) {
+  message("Saving BoolNet object to: ", boolnetFile)
+  saveRDS(boolnet, file = boolnetFile)
 
-  message("Saving attractors")
-  saveRDS(attractors, file = attractorsSaveFile)
+  message("Saving attractors to: ", attractorsFile)
+  saveRDS(attractors, file = attractorsFile)
 
-  message("Saving gene mapping")
+  message("Saving gene mapping to: ", geneMapFile)
   geneMap <- generateSanitizedGeneMapping(rownames(cds))
-  saveRDS(geneMap, file = geneMapSaveFile)
+  saveRDS(geneMap, file = geneMapFile)
 }
 
 message("Done!")

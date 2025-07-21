@@ -41,8 +41,8 @@ cdsPath        <- paste0(monocle3Path, "monocle3_", cellType, "_", cellTrajector
 degFile        <- paste0(rdsPath, cellType, "_", cellTrajectory, "_switch_degs.rds")
 graphMlFile    <- paste0(graphMlPath, cellType, "_", cellTrajectory, "_grn.graphml")
 scenicFile     <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_01.rds")
-edgesSaveFile  <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_02_edges.rds")
-graphSaveFile  <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_02.rds")
+edgesFile      <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_02_edges.rds")
+graphFile      <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_02.rds")
 
 dir.create(graphMlPath, recursive = TRUE, showWarnings = FALSE)
 dir.create(plotPath,    recursive = TRUE, showWarnings = FALSE)
@@ -138,11 +138,11 @@ cat("\n")
 # --- Save Final Graph ---
 if (config$saveResults) {
 
-  message("Saving edge list to: ", edgesSaveFile)
-  saveRDS(scenicEdges, file = edgesSaveFile)
+  message("Saving edge list to: ", edgesFile)
+  saveRDS(scenicEdges, file = edgesFile)
   
-  message("Saving final GRN to: ", graphSaveFile)
-  saveRDS(g, file = graphSaveFile)
+  message("Saving final GRN to: ", graphFile)
+  saveRDS(g, file = graphFile)
   
   message("Saving final GRN to: ", graphMlFile)
   igraph::write_graph(g, graphMlFile, format = "graphml")
