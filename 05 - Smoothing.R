@@ -44,6 +44,9 @@ if (!dir.exists(cdsPath)) stop("Monocle3 directory not found: ", cdsPath)
 message("Loading Monocle3 object from: ", cdsPath)
 cds <- load_monocle_objects(directory_path = cdsPath)
 
+cat("\014")
+cat("\n")
+
 # --- Ensure Pseudotime is Computed ---
 if (is.null(colData(cds)$Pseudotime)) {
   message("Computing pseudotime")

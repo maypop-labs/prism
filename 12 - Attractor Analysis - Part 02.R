@@ -3,6 +3,8 @@
 #
 # Merge age scores and basin sizes with perturbation-based stability and entropy.
 # Compute a composite attractor aging score. Save results.
+#
+# This script has a long runtime. Grab a cup of coffee. C[_]
 # =============================================================================
 
 # --- Libraries ---
@@ -11,6 +13,8 @@ library(doParallel)
 library(BoolNet)
 library(monocle3)
 library(dplyr)
+library(gmp)
+library(progressr)
 
 # --- Source functions ---
 source("functions.R")
@@ -19,7 +23,10 @@ source("functions.R")
 options(warn = -1)
 config <- yaml::read_yaml("config.yaml")
 options(Seurat.object.assay.version = config$SeuratAssay)
-registerDoParallel(cores = config$cores)
+#registerDoParallel(cores = 2)
+cl <- makePSOCKcluster(16)
+clusterExport(cl, c("decodeBigIntegerState", "shannonEntropy"))
+registerDoParallel(cl)
 
 # --- Parameters ---
 monocle3Path        <- paste0(config$rootPath, "results/monocle3/")
@@ -64,11 +71,21 @@ attractors <- readRDS(attractorsFile)
 message("Loading attractor data frame from: ", attractorDfFile)
 attractorDf <- readRDS(attractorDfFile)
 
+cat("\014")
+cat("\n")
+
 # --- Compute Entropy and Stability ---
 message("Computing entropy and stability metrics for attractors")
-entropyDf <- computeAttractorEntropy(boolnet, attractors, nSamplesState = 1000, nPerturb = 1000)
+
+handlers("txtprogressbar")   # shows the bar
+with_progress({
+  entropyDf <- computeAttractorEntropy_parallel(boolnet, attractors, nSamplesState = 1000, nPerturb = 1000)
+})
+stopCluster(cl)
+#entropyDf <- computeAttractorEntropy(boolnet, attractors, nSamplesState = 1000, nPerturb = 1000)
 
 # --- Merge Scores ---
+message("Merging Scores")
 attractorDfScores <- merge(
   x  = entropyDf,
   y  = attractorDf,

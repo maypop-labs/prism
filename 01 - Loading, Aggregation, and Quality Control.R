@@ -42,6 +42,9 @@ seuratFile     <- paste0(rdsPath, "merged_seurat.rds")
 dir.create(plotPath, recursive = TRUE, showWarnings = FALSE)
 dir.create(rdsPath,  recursive = TRUE, showWarnings = FALSE)
 
+cat("\014")
+cat("\n")
+
 # --- Load and Annotate Seurat Objects ---
 seuratList <- vector("list", length(config$nameVec))
 for (i in seq_along(config$nameVec)) {

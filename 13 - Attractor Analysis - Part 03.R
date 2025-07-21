@@ -69,6 +69,9 @@ attractorDf <- readRDS(attractorDfFile)
 message("Loading attractor scores from: ", attractorScoresFile)
 attractorScores <- readRDS(attractorScoresFile)
 
+cat("\014")
+cat("\n")
+
 # --- Output Paths ---
 singleKDFile <- paste0(rdsPath, cellType, "_", cellTrajectory, "_final_single_targets_0.rds")
 singleOEFile <- paste0(rdsPath, cellType, "_", cellTrajectory, "_final_single_targets_1.rds")

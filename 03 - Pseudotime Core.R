@@ -46,6 +46,9 @@ if (!file.exists(seuratFile)) stop("Seurat RDS file not found: ", seuratFile)
 message("Loading Seurat object for cell type: ", cellType)
 seuratObj <- readRDS(seuratFile)
 
+cat("\014")
+cat("\n")
+
 # --- Convert to Monocle3 CellDataSet ---
 convertSeuratToCDS <- function(seuratObj) {
   rawCounts <- LayerData(seuratObj, layer = "counts")

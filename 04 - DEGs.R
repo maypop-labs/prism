@@ -47,6 +47,9 @@ if (!dir.exists(cdsPath)) stop("Monocle3 directory not found: ", cdsPath)
 message("Loading Monocle3 object from: ", cdsPath)
 cds <- load_monocle_objects(directory_path = cdsPath)
 
+cat("\014")
+cat("\n")
+
 # --- DEG Testing Along Pseudotime ---
 message("Performing graph_test for differential gene expression")
 degTable <- graph_test(cds, neighbor_graph = "principal_graph", cores = 1)

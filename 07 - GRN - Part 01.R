@@ -54,6 +54,9 @@ cds <- load_monocle_objects(directory_path = cdsPath)
 message("Loading switch DEGs from: ", degFile)
 switchDEGS <- readRDS(degFile)
 
+cat("\014")
+cat("\n")
+
 # --- Filter and Normalize Expression Matrix ---
 exprMat   <- assay(cds, "smoothed_expr")
 keepGenes <- rowSums(exprMat > 1) >= 10

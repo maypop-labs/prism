@@ -37,6 +37,9 @@ dir.create(txtPath,  recursive = TRUE, showWarnings = FALSE)
 if (!file.exists(seuratFile)) stop("Merged Seurat object not found")
 mergedSeurat <- readRDS(seuratFile)
 
+cat("\014")
+cat("\n")
+
 # --- Assign Cell Types Using SingleR ---
 message("Assigning cell types using SingleR")
 sce       <- as.SingleCellExperiment(mergedSeurat)

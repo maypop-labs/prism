@@ -57,6 +57,9 @@ cds <- load_monocle_objects(directory_path = cdsPath)
 message("Loading Boolean Rules from: ", rulesFile)
 boolRules <- readRDS(rulesFile)
 
+cat("\014")
+cat("\n")
+
 # --- Build BoolNet Rule Table ---
 message("Building BoolNet rule table")
 ruleLines <- c("targets,factors")

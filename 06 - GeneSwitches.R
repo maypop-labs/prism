@@ -52,6 +52,9 @@ cds <- load_monocle_objects(directory_path = cdsPath)
 message("Loading DEG table from: ", degFile)
 degTable <- readRDS(degFile)
 
+cat("\014")
+cat("\n")
+
 # --- Filter Significant Genes ---
 sigGenes <- subset(degTable, q_value < config$fdrLevel)$gene_id
 message("Number of significant genes: ", length(sigGenes))

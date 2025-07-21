@@ -117,30 +117,101 @@ shannonEntropy <- function(p) {
   -sum(p * log2(p))
 }
 
-computeAttractorEntropy <- function(boolnet, attractors, nSamplesState = 5, nPerturb = 10) {
+computeAttractorEntropy <- function(boolnet, attractors,
+                                    nSamplesState = 5, nPerturb = 10,
+                                    showProgress = TRUE) {
+  
   geneNames <- attractors$stateInfo$genes
-  nGenes <- length(geneNames)
-  results <- data.frame(AttractorIndex = seq_along(attractors$attractors), Entropy = numeric(length(attractors$attractors)))
-
-  for (i in seq_along(attractors$attractors)) {
+  nGenes    <- length(geneNames)
+  nAttr     <- length(attractors$attractors)
+  
+  if (showProgress)
+    pb <- utils::txtProgressBar(min = 0, max = nAttr, style = 3)
+  
+  results <- data.frame(AttractorIndex = seq_len(nAttr),
+                        Entropy = NA_real_)
+  
+  for (i in seq_len(nAttr)) {
+    
     att <- attractors$attractors[[i]]
     allStates <- att$involvedStates
-    if (length(allStates) == 0) next
-    sel <- if (length(allStates) > nSamplesState) sample(allStates, nSamplesState) else allStates
-
-    entropies <- sapply(sel, function(stateVal) {
+    if (length(allStates) == 0) {
+      if (showProgress) utils::setTxtProgressBar(pb, i)
+      next
+    }
+    
+    sel <- if (length(allStates) > nSamplesState)
+      sample(allStates, nSamplesState)
+    else
+      allStates
+    
+    entropies <- vapply(sel, function(stateVal) {
+      
       decoded <- decodeBigIntegerState(stateVal, nGenes)
       names(decoded) <- geneNames
-      final <- replicate(nPerturb, {
-        pert <- perturbNetwork(boolnet, method = "shuffle", perturb = "functions")
-        getAttractors(pert, method = "chosen", startStates = list(decoded), returnTable = TRUE, type = "synchronous")$attractors[[1]]$involvedStates[[1]]
+      
+      finals <- replicate(nPerturb, {
+        pert  <- perturbNetwork(boolnet, method = "shuffle",
+                                perturb = "functions")
+        getAttractors(pert, method = "chosen",
+                      startStates = list(decoded),
+                      returnTable = TRUE,
+                      type = "synchronous")$attractors[[1]]$involvedStates[[1]]
       })
-      shannonEntropy(table(as.character(final)) / length(final))
-    })
+      
+      shannonEntropy(table(as.character(finals)) / length(finals))
+      
+    }, numeric(1))
+    
     results$Entropy[i] <- mean(entropies, na.rm = TRUE)
+    
+    if (showProgress) utils::setTxtProgressBar(pb, i)
   }
+  
+  if (showProgress) close(pb)
+  
   results$ScaledEntropy <- results$Entropy / log2(nrow(results))
-  results$Stability <- 1 - results$ScaledEntropy
+  results$Stability     <- 1 - results$ScaledEntropy
+  results
+}
+
+computeAttractorEntropy_parallel <- function(boolnet, attractors,
+                                             nSamplesState = 5, nPerturb = 10) {
+  
+  nAttr <- length(attractors$attractors)
+  p <- progressr::progressor(along = seq_len(nAttr))
+  
+  results <- foreach(i = seq_len(nAttr), .combine = rbind,
+                     .packages = c("BoolNet", "gmp")) %dopar% {
+                       
+                       on.exit(p(message = sprintf("attr %d", i)), add = TRUE)
+                       
+                       att <- attractors$attractors[[i]]
+                       if (length(att$involvedStates) == 0)
+                         return(data.frame(AttractorIndex = i, Entropy = NA_real_))
+                       
+                       sel <- if (length(att$involvedStates) > nSamplesState)
+                         sample(att$involvedStates, nSamplesState)
+                       else
+                         att$involvedStates
+                       
+                       entropies <- vapply(sel, function(stateVal) {
+                         decoded <- decodeBigIntegerState(stateVal, length(attractors$stateInfo$genes))
+                         names(decoded) <- attractors$stateInfo$genes
+                         finals <- replicate(nPerturb, {
+                           pert <- perturbNetwork(boolnet, method = "shuffle", perturb = "functions")
+                           getAttractors(pert, method = "chosen",
+                                         startStates = list(decoded),
+                                         returnTable = TRUE, type = "synchronous")$attractors[[1]]$involvedStates[[1]]
+                         })
+                         shannonEntropy(table(as.character(finals)) / length(finals))
+                       }, numeric(1))
+                       
+                       data.frame(AttractorIndex = i, Entropy = mean(entropies, na.rm = TRUE))
+                     }
+  
+  results$ScaledEntropy <- results$Entropy / log2(nrow(results))
+  results$Stability     <- 1 - results$ScaledEntropy
   results
 }
 

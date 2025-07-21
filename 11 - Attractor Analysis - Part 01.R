@@ -61,6 +61,9 @@ geneMap <- readRDS(geneMapFile)
 message("Loading attractors from: ", attractorsFile)
 attractors <- readRDS(attractorsFile)
 
+cat("\014")
+cat("\n")
+
 # --- Prepare Binary Expression and Pseudotime ---
 matBin <- assay(cds, "binary")
 colData(cds)$Pseudotime <- pseudotime(cds)

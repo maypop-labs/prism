@@ -63,6 +63,9 @@ edges <- readRDS(edgesFile)
 message("Loading graph from: ", graphFile)
 g <- readRDS(graphFile)
 
+cat("\014")
+cat("\n")
+
 # --- Prepare Binary Matrix and Pseudotime Order ---
 matBin    <- assay(cds, "binary")
 cellOrder <- order(colData(cds)$Pseudotime)
