@@ -23,7 +23,6 @@ source("functions.R")
 options(warn = -1)
 config <- yaml::read_yaml("config.yaml")
 options(Seurat.object.assay.version = config$SeuratAssay)
-registerDoParallel(cores = config$cores)
 cl <- makePSOCKcluster(config$cores)
 clusterExport(cl, c("decodeBigIntegerState", "shannonEntropy"))
 registerDoParallel(cl)
@@ -80,8 +79,8 @@ message("Computing entropy and stability metrics for attractors")
 handlers("txtprogressbar")   # shows the bar
 with_progress({
   if (config$cores > 1) {
-    entropyDf <- computeAttractorEntropy_parallel(boolnet, attractors, nSamplesState = 1000, nPerturb = 1000) 
-  } else { entropyDf <- computeAttractorEntropy(boolnet, attractors, nSamplesState = 1000, nPerturb = 1000) }
+    entropyDf <- computeAttractorEntropy_parallel(boolnet, attractors, nSamplesState = 100, nPerturb = 100) 
+  } else { entropyDf <- computeAttractorEntropy(boolnet, attractors, nSamplesState = 100, nPerturb = 100) }
 })
 stopCluster(cl)
 

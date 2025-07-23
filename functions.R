@@ -112,10 +112,13 @@ decodeBigIntegerState <- function(encodedVal, nGenes) {
 # -----------------------------------------------------------------------------
 # Shannon Entropy and Attractor Entropy Computation
 # -----------------------------------------------------------------------------
+
 shannonEntropy <- function(p) {
   p <- p[p > 0]
   -sum(p * log2(p))
 }
+
+# -----------------------------------------------------------------------------
 
 computeAttractorEntropy <- function(boolnet, attractors,
                                     nSamplesState = 5, nPerturb = 10,
@@ -151,8 +154,7 @@ computeAttractorEntropy <- function(boolnet, attractors,
       names(decoded) <- geneNames
       
       finals <- replicate(nPerturb, {
-        pert  <- perturbNetwork(boolnet, method = "shuffle",
-                                perturb = "functions")
+        pert  <- perturbNetwork(boolnet, method = "shuffle", perturb = "functions")
         getAttractors(pert, method = "chosen",
                       startStates = list(decoded),
                       returnTable = TRUE,
@@ -175,6 +177,8 @@ computeAttractorEntropy <- function(boolnet, attractors,
   results
 }
 
+# -----------------------------------------------------------------------------
+
 computeAttractorEntropy_parallel <- function(boolnet, attractors,
                                              nSamplesState = 5, nPerturb = 10) {
   
@@ -184,6 +188,7 @@ computeAttractorEntropy_parallel <- function(boolnet, attractors,
   results <- foreach(i = seq_len(nAttr), .combine = rbind,
                      .packages = c("BoolNet", "gmp")) %dopar% {
                        
+                       if (i %% 10 == 0) p(message = paste(i,"/ ",nAttr))
                        on.exit(p(message = sprintf("attr %d", i)), add = TRUE)
                        
                        att <- attractors$attractors[[i]]
