@@ -6,6 +6,61 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# Cell Type Menu
+# -----------------------------------------------------------------------------
+
+showCellTypeMenu <- function(cellTypes) {
+  # Prompt the user only in an interactive R session
+  if (is.null(cellTypes) || length(cellTypes) == 0) {
+    stop("There are no valid cell types.")
+  }
+  if (interactive()) {
+    cat("\014")
+    cat("\n")
+    selectionIndex <- menu(cellTypes, title = "Select a cell type:")
+    
+    if (selectionIndex == 0) {
+      stop("No selection made. Exiting.")
+    }
+    cellType <- cellTypes[selectionIndex]
+    cat("\014")
+    message("You chose: ", cellType)
+    message(" ")
+  } else {
+    stop("This script must be run interactively to choose a cell type.")
+  }
+  cellType
+}
+
+# -----------------------------------------------------------------------------
+# Pseudotime Trajectory Menu
+# -----------------------------------------------------------------------------
+
+showTrajectoryMenu <- function(trajectories) {
+  # Prompt the user only in an interactive R session
+  if (is.null(trajectories) || length(trajectories) == 0) {
+    stop("There are no valid pseudotime trajectories for this cell type.")
+  }
+  
+  if (interactive()) {
+    cat("\014")
+    cat("\n")
+    selectionIndex <- menu(trajectories, title = "Select a pseudotime trajectory:")
+    
+    if (selectionIndex == 0) {
+      stop("No selection made. Exiting.")
+    }
+    traj <- trajectories[selectionIndex]
+    cat("\014")
+    message("You chose: ", traj)
+    message(" ")
+  } else {
+    stop("This script must be run interactively to choose a cell type.")
+  }
+  traj
+}
+
+# -----------------------------------------------------------------------------
 # Compute Input-Output Pairs for a Given Gene
 # -----------------------------------------------------------------------------
 makeInputOutputPairs <- function(targetGene, regulators, matBin, cellOrder, k = 10) {
@@ -373,30 +428,27 @@ computeAttractorEntropy_bitflip_vec <- function(boolnet, attractors,
 }
 
 # =============================================================================
-# computeAttractorEntropy_bitflip_bulkC.R
+# computeAttractorEntropy_bitflip_bulkC.R  (auto‑detect helper)
 #
-# Dynamical‑stability / entropy estimator that leverages BoolNet's C helper
-# `simulateNetworkMultiple()` to evolve **many** initial states in one C call.
-# The only R‑level work is sampling steady states + flip indices and tabulating
-# the C result, which slashes runtime for large (S × M) Monte‑Carlo grids.
-#
-# Tested with BoolNet ≥ 2.1.6.  Function is single‑core but still fast; you may
-# parallelise across ATTRACTORS later if needed.
-#
-# -----------------------------------------------------------------------------
-# Arguments
-# -----------------------------------------------------------------------------
-#  boolnet        : BoolNet object
-#  attractors     : list returned by BoolNet::getAttractors()
-#  nSamplesState  : max # of distinct steady states to sample per attractor (S)
-#  nPerturb       : # of single‑gene bit flips per sampled state       (M)
-#  showProgress   : TRUE ⇒ text progress bar
-# -----------------------------------------------------------------------------
+# Uses BoolNet's hidden C routine `simulateNetworkMultiple()` *when it exists*.
+# BoolNet ≥ 2.1.6 on CRAN once carried the helper but some later releases
+# renamed / removed it.  We detect it at run‑time; if missing we fall back to a
+# column‑wise apply that still avoids the heavy `getAttractors()` call.
+# =============================================================================
 
 computeAttractorEntropy_bitflip_bulkC <- function(boolnet, attractors,
                                                   nSamplesState = 25,
                                                   nPerturb      = 25,
                                                   showProgress  = TRUE) {
+  
+  # ---- try to locate the C helper -----------------------------------------
+  .bulkSim <- get0("simulateNetworkMultiple",
+                   envir = asNamespace("BoolNet"),
+                   inherits = FALSE)
+  if (is.null(.bulkSim))
+    message("[INFO] simulateNetworkMultiple() not found in BoolNet namespace – falling back to R loop")
+  else
+    message("[INFO] Using BoolNet C helper simulateNetworkMultiple() for bulk evolution")
   
   geneNames <- attractors$stateInfo$genes
   nGenes    <- length(geneNames)
@@ -405,7 +457,7 @@ computeAttractorEntropy_bitflip_bulkC <- function(boolnet, attractors,
   if (showProgress)
     pb <- utils::txtProgressBar(min = 0, max = nAttr, style = 3)
   
-  # ---- 1. cache decoded steady states once ---------------------------------
+  # ---- 1. cache decoded steady states once --------------------------------
   decodeCache <- lapply(attractors$attractors, function(att) {
     lapply(att$involvedStates, decodeBigIntegerState, nGenes = nGenes)
   })
@@ -425,29 +477,38 @@ computeAttractorEntropy_bitflip_bulkC <- function(boolnet, attractors,
                      size = min(length(decoded), nSamplesState))
     sel    <- decoded[selIdx]
     
-    S <- length(sel)          # #seed states
-    M <- nPerturb             # flips per seed
-    tot <- S * M              # total trials for this attractor
+    S   <- length(sel)            # #seed states
+    M   <- nPerturb               # flips per seed
+    tot <- S * M                  # total trials for this attractor
     
-    # ---- 3. create matrices of seeds & flip indices -----------------------
+    # ---- 3. assemble initial state matrix ---------------------------------
     seedsMatIdx <- sample(selIdx,  tot, replace = TRUE)
     flipsVec    <- sample.int(nGenes, tot, replace = TRUE)
     
-    # build initial‑state matrix expected by simulateNetworkMultiple:
-    #   rows = genes, cols = trials
     initMat <- matrix(0L, nrow = nGenes, ncol = tot)
     
     for (k in seq_len(tot)) {
       initMat[, k] <- sel[[ which(selIdx == seedsMatIdx[k])[1] ]]
       g <- flipsVec[k]
-      initMat[g, k] <- 1L - initMat[g, k]   # toggle bit
+      initMat[g, k] <- 1L - initMat[g, k]
     }
     storage.mode(initMat) <- "integer"
     
-    # ---- 4. evolve all states in *one* C call -----------------------------
-    finalMat <- BoolNet:::simulateNetworkMultiple(boolnet, initMat,
-                                                  type = "synchronous",
-                                                  returnSeries = FALSE)
+    # ---- 4. evolve all trials ---------------------------------------------
+    if (!is.null(.bulkSim)) {
+      # fast C path ----------------------------------------------------------
+      finalMat <- .bulkSim(boolnet, initMat,
+                           type = "synchronous", returnSeries = FALSE)
+    } else {
+      # slower R fallback ----------------------------------------------------
+      finalMat <- apply(initMat, 2, function(v) {
+        BoolNet::simulateNetwork(boolnet,
+                                 startStates  = matrix(v, nrow = nGenes),
+                                 type         = "synchronous",
+                                 returnSeries = FALSE)[, 1]
+      })
+      if (is.vector(finalMat)) finalMat <- matrix(finalMat, ncol = 1)
+    }
     
     finals <- apply(finalMat, 2, paste, collapse = "")
     shEnt  <- shannonEntropy(table(finals) / tot)
@@ -462,59 +523,4 @@ computeAttractorEntropy_bitflip_bulkC <- function(boolnet, attractors,
   res$ScaledEntropy <- res$Entropy / log2(nAttr)
   res$Stability     <- 1 - res$ScaledEntropy
   res
-}
-
-# -----------------------------------------------------------------------------
-# Cell Type Menu
-# -----------------------------------------------------------------------------
-
-showCellTypeMenu <- function(cellTypes) {
-  # Prompt the user only in an interactive R session
-  if (is.null(cellTypes) || length(cellTypes) == 0) {
-    stop("There are no valid cell types.")
-  }
-  if (interactive()) {
-    cat("\014")
-    cat("\n")
-    selectionIndex <- menu(cellTypes, title = "Select a cell type:")
-    
-    if (selectionIndex == 0) {
-      stop("No selection made. Exiting.")
-    }
-    cellType <- cellTypes[selectionIndex]
-    cat("\014")
-    message("You chose: ", cellType)
-    message(" ")
-  } else {
-    stop("This script must be run interactively to choose a cell type.")
-  }
-  cellType
-}
-
-# -----------------------------------------------------------------------------
-# Pseudotime Trajectory Menu
-# -----------------------------------------------------------------------------
-
-showTrajectoryMenu <- function(trajectories) {
-  # Prompt the user only in an interactive R session
-  if (is.null(trajectories) || length(trajectories) == 0) {
-    stop("There are no valid pseudotime trajectories for this cell type.")
-  }
-  
-  if (interactive()) {
-    cat("\014")
-    cat("\n")
-    selectionIndex <- menu(trajectories, title = "Select a pseudotime trajectory:")
-    
-    if (selectionIndex == 0) {
-      stop("No selection made. Exiting.")
-    }
-    traj <- trajectories[selectionIndex]
-    cat("\014")
-    message("You chose: ", traj)
-    message(" ")
-  } else {
-    stop("This script must be run interactively to choose a cell type.")
-  }
-  traj
 }
