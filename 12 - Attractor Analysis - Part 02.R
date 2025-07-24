@@ -71,42 +71,60 @@ message("Loading attractor data frame from: ", attractorDfFile)
 attractorDf <- readRDS(attractorDfFile)
 
 cat("\014")
-cat("\n")
 
-# --- Compute Entropy and Stability ---
-message("Computing entropy and stability metrics for attractors")
+# =============================================================================
+# Compute attractor entropy and stability
+# =============================================================================
 
-handlers("txtprogressbar")   # shows the bar
-with_progress({
-  if (config$cores > 1) {
-    entropyDf <- computeAttractorEntropy_parallel(boolnet, attractors, nSamplesState = 100, nPerturb = 100) 
-  } else { entropyDf <- computeAttractorEntropy(boolnet, attractors, nSamplesState = 100, nPerturb = 100) }
-})
-stopCluster(cl)
+message("Computing entropy (", config$nSamplesState, " states per attractor, ", config$nPerturb, " perturbations each)")
 
-# --- Merge Scores ---
-message("Merging Scores")
+handlers("txtprogressbar")
+
+entropyDf <- switch(config$entropyMethod,
+                    shuffle = entropyDf <- computeAttractorEntropy(
+                      boolnet       = boolnet,
+                      attractors    = attractors,
+                      nSamplesState = config$nSamplesState,
+                      nPerturb      = config$nPerturb,
+                      showProgress  = TRUE),
+                    bitflip = entropyDf <- computeAttractorEntropy_bitflip(
+                      boolnet       = boolnet,
+                      attractors    = attractors,
+                      nSamplesState = config$nSamplesState,
+                      nPerturb      = config$nPerturb,
+                      showProgress  = TRUE)
+)
+
+# =============================================================================
+# Merge with basin size and age scores
+# =============================================================================
+
+message("Merging scores…")
 attractorDfScores <- merge(
   x  = entropyDf,
   y  = attractorDf,
   by.x = "AttractorIndex",
-  by.y = "Attractor"
-)
+  by.y = "Attractor",
+  all.x = TRUE)
 
-cat("\014")
-cat("\n")
+# =============================================================================
+# Composite aging score
+# =============================================================================
 
-# --- Compute Final Score ---
-attractorDfScores$AttractorScore <- with(attractorDfScores, Stability * BasinSize * AgeScore)
-agingScore <- sum(attractorDfScores$AttractorScore)
+attractorDfScores$AttractorScore <- with(attractorDfScores,
+                                         Stability * BasinSize * AgeScore)
+agingScore <- sum(attractorDfScores$AttractorScore, na.rm = TRUE)
 
-# --- Output ---
+# =============================================================================
+# Output
+# =============================================================================
+
 print(attractorDfScores)
 cat("\nOverall Aging Score =", agingScore, "\n")
 
-if (config$saveResults) {
+if (isTRUE(config$saveResults)) {
   message("Saving combined attractor_df_scores to: ", attractorScoresFile)
   saveRDS(attractorDfScores, file = attractorScoresFile)
 }
 
-message("Done!")
+message("All done!")
