@@ -87,7 +87,7 @@ entropyDf <- switch(config$entropyMethod,
                       nSamplesState = config$nSamplesState,
                       nPerturb      = config$nPerturb,
                       showProgress  = TRUE),
-                    bitflip = entropyDf <- computeAttractorEntropy_bitflip(
+                    bitflip = entropyDf <- computeAttractorEntropy_bitflip_vec(
                       boolnet       = boolnet,
                       attractors    = attractors,
                       nSamplesState = config$nSamplesState,

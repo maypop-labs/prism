@@ -285,6 +285,93 @@ computeAttractorEntropy_bitflip <- function(boolnet, attractors,
   results
 }
 
+# =============================================================================
+# computeAttractorEntropy_bitflip_vec.R
+#
+# Vectorised, single‑core entropy / stability estimator.
+# Instead of a nested replicate() loop (S sampled states × M perturbations), we
+# pre‑allocate two integer matrices (seeds & flips) and iterate over columns.
+# This trims R‑level function calls and makes per‑attractor timing roughly
+# O(S×M) with a small constant factor.
+#
+# External deps: BoolNet, gmp  (both should already be loaded by caller)
+# ----------------------------------------------------------------------------
+#  boolnet        : BoolNet object produced earlier in pipeline
+#  attractors     : list from BoolNet::getAttractors()
+#  nSamplesState  : max # of distinct states to draw from each attractor
+#  nPerturb       : # of single‑gene flips per sampled state
+#  showProgress   : TRUE ⇒ console txt progress‑bar
+# ----------------------------------------------------------------------------
+
+computeAttractorEntropy_bitflip_vec <- function(boolnet, attractors,
+                                                nSamplesState = 25,
+                                                nPerturb      = 25,
+                                                showProgress  = TRUE) {
+  
+  geneNames <- attractors$stateInfo$genes
+  nGenes    <- length(geneNames)
+  nAttr     <- length(attractors$attractors)
+  
+  if (showProgress)
+    pb <- utils::txtProgressBar(min = 0, max = nAttr, style = 3)
+  
+  # ---- prepare decoded cache once -----------------------------------------
+  decodeCache <- lapply(attractors$attractors, function(att) {
+    lapply(att$involvedStates, decodeBigIntegerState, nGenes = nGenes)
+  })
+  
+  results <- data.frame(AttractorIndex = seq_len(nAttr), Entropy = NA_real_)
+  
+  for (i in seq_len(nAttr)) {
+    
+    decodedStates <- decodeCache[[i]]
+    if (length(decodedStates) == 0) {
+      if (showProgress) utils::setTxtProgressBar(pb, i)
+      next
+    }
+    
+    # ---- sample up to nSamplesState unique steady states ------------------
+    selIdx   <- sample(seq_along(decodedStates),
+                       size = min(length(decodedStates), nSamplesState))
+    sel      <- decodedStates[selIdx]
+    S        <- length(sel)
+    M        <- nPerturb
+    
+    # ---- vectorise: matrices seeds[S,M] and flips[S,M] --------------------
+    seedsIdx <- matrix(sample(selIdx,  S * M, replace = TRUE), nrow = S)
+    flipsMat <- matrix(sample.int(nGenes, S * M, replace = TRUE), nrow = S)
+    
+    finals <- vector("list", S * M)
+    ctr    <- 1L
+    
+    for (col in seq_len(M)) {
+      # work down the column (all S rows share same col index)
+      for (row in seq_len(S)) {
+        s <- sel[[ row ]]
+        flipGene <- flipsMat[row, col]
+        s[flipGene] <- 1L - s[flipGene]
+        finals[[ctr]] <- BoolNet::getAttractors(boolnet,
+                                                method      = "chosen",
+                                                startStates = list(s),
+                                                returnTable = TRUE,
+                                                type        = "synchronous")$attractors[[1]]$involvedStates[[1]]
+        ctr <- ctr + 1L
+      }
+    }
+    
+    shEnt <- shannonEntropy(table(as.character(unlist(finals))) / (S * M))
+    results$Entropy[i] <- shEnt
+    
+    if (showProgress) utils::setTxtProgressBar(pb, i)
+  }
+  
+  if (showProgress) close(pb)
+  
+  results$ScaledEntropy <- results$Entropy / log2(nAttr)
+  results$Stability     <- 1 - results$ScaledEntropy
+  results
+}
+
 # -----------------------------------------------------------------------------
 # Cell Type Menu
 # -----------------------------------------------------------------------------
