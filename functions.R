@@ -372,6 +372,98 @@ computeAttractorEntropy_bitflip_vec <- function(boolnet, attractors,
   results
 }
 
+# =============================================================================
+# computeAttractorEntropy_bitflip_bulkC.R
+#
+# Dynamical‑stability / entropy estimator that leverages BoolNet's C helper
+# `simulateNetworkMultiple()` to evolve **many** initial states in one C call.
+# The only R‑level work is sampling steady states + flip indices and tabulating
+# the C result, which slashes runtime for large (S × M) Monte‑Carlo grids.
+#
+# Tested with BoolNet ≥ 2.1.6.  Function is single‑core but still fast; you may
+# parallelise across ATTRACTORS later if needed.
+#
+# -----------------------------------------------------------------------------
+# Arguments
+# -----------------------------------------------------------------------------
+#  boolnet        : BoolNet object
+#  attractors     : list returned by BoolNet::getAttractors()
+#  nSamplesState  : max # of distinct steady states to sample per attractor (S)
+#  nPerturb       : # of single‑gene bit flips per sampled state       (M)
+#  showProgress   : TRUE ⇒ text progress bar
+# -----------------------------------------------------------------------------
+
+computeAttractorEntropy_bitflip_bulkC <- function(boolnet, attractors,
+                                                  nSamplesState = 25,
+                                                  nPerturb      = 25,
+                                                  showProgress  = TRUE) {
+  
+  geneNames <- attractors$stateInfo$genes
+  nGenes    <- length(geneNames)
+  nAttr     <- length(attractors$attractors)
+  
+  if (showProgress)
+    pb <- utils::txtProgressBar(min = 0, max = nAttr, style = 3)
+  
+  # ---- 1. cache decoded steady states once ---------------------------------
+  decodeCache <- lapply(attractors$attractors, function(att) {
+    lapply(att$involvedStates, decodeBigIntegerState, nGenes = nGenes)
+  })
+  
+  res <- data.frame(AttractorIndex = seq_len(nAttr), Entropy = NA_real_)
+  
+  for (i in seq_len(nAttr)) {
+    
+    decoded <- decodeCache[[i]]
+    if (length(decoded) == 0) {
+      if (showProgress) utils::setTxtProgressBar(pb, i)
+      next
+    }
+    
+    # ---- 2. sample ≤ nSamplesState unique states ---------------------------
+    selIdx <- sample(seq_along(decoded),
+                     size = min(length(decoded), nSamplesState))
+    sel    <- decoded[selIdx]
+    
+    S <- length(sel)          # #seed states
+    M <- nPerturb             # flips per seed
+    tot <- S * M              # total trials for this attractor
+    
+    # ---- 3. create matrices of seeds & flip indices -----------------------
+    seedsMatIdx <- sample(selIdx,  tot, replace = TRUE)
+    flipsVec    <- sample.int(nGenes, tot, replace = TRUE)
+    
+    # build initial‑state matrix expected by simulateNetworkMultiple:
+    #   rows = genes, cols = trials
+    initMat <- matrix(0L, nrow = nGenes, ncol = tot)
+    
+    for (k in seq_len(tot)) {
+      initMat[, k] <- sel[[ which(selIdx == seedsMatIdx[k])[1] ]]
+      g <- flipsVec[k]
+      initMat[g, k] <- 1L - initMat[g, k]   # toggle bit
+    }
+    storage.mode(initMat) <- "integer"
+    
+    # ---- 4. evolve all states in *one* C call -----------------------------
+    finalMat <- BoolNet:::simulateNetworkMultiple(boolnet, initMat,
+                                                  type = "synchronous",
+                                                  returnSeries = FALSE)
+    
+    finals <- apply(finalMat, 2, paste, collapse = "")
+    shEnt  <- shannonEntropy(table(finals) / tot)
+    
+    res$Entropy[i] <- shEnt
+    
+    if (showProgress) utils::setTxtProgressBar(pb, i)
+  }
+  
+  if (showProgress) close(pb)
+  
+  res$ScaledEntropy <- res$Entropy / log2(nAttr)
+  res$Stability     <- 1 - res$ScaledEntropy
+  res
+}
+
 # -----------------------------------------------------------------------------
 # Cell Type Menu
 # -----------------------------------------------------------------------------
