@@ -428,99 +428,16 @@ computeAttractorEntropy_bitflip_vec <- function(boolnet, attractors,
 }
 
 # =============================================================================
-# computeAttractorEntropy_bitflip_bulkC.R  (auto‑detect helper)
+# timeIt.R
 #
-# Uses BoolNet's hidden C routine `simulateNetworkMultiple()` *when it exists*.
-# BoolNet ≥ 2.1.6 on CRAN once carried the helper but some later releases
-# renamed / removed it.  We detect it at run‑time; if missing we fall back to a
-# column‑wise apply that still avoids the heavy `getAttractors()` call.
 # =============================================================================
 
-computeAttractorEntropy_bitflip_bulkC <- function(boolnet, attractors,
-                                                  nSamplesState = 25,
-                                                  nPerturb      = 25,
-                                                  showProgress  = TRUE) {
-  
-  # ---- try to locate the C helper -----------------------------------------
-  .bulkSim <- get0("simulateNetworkMultiple",
-                   envir = asNamespace("BoolNet"),
-                   inherits = FALSE)
-  if (is.null(.bulkSim))
-    message("[INFO] simulateNetworkMultiple() not found in BoolNet namespace – falling back to R loop")
-  else
-    message("[INFO] Using BoolNet C helper simulateNetworkMultiple() for bulk evolution")
-  
-  geneNames <- attractors$stateInfo$genes
-  nGenes    <- length(geneNames)
-  nAttr     <- length(attractors$attractors)
-  
-  if (showProgress)
-    pb <- utils::txtProgressBar(min = 0, max = nAttr, style = 3)
-  
-  # ---- 1. cache decoded steady states once --------------------------------
-  decodeCache <- lapply(attractors$attractors, function(att) {
-    lapply(att$involvedStates, decodeBigIntegerState, nGenes = nGenes)
-  })
-  
-  res <- data.frame(AttractorIndex = seq_len(nAttr), Entropy = NA_real_)
-  
-  for (i in seq_len(nAttr)) {
-    
-    decoded <- decodeCache[[i]]
-    if (length(decoded) == 0) {
-      if (showProgress) utils::setTxtProgressBar(pb, i)
-      next
-    }
-    
-    # ---- 2. sample ≤ nSamplesState unique states ---------------------------
-    selIdx <- sample(seq_along(decoded),
-                     size = min(length(decoded), nSamplesState))
-    sel    <- decoded[selIdx]
-    
-    S   <- length(sel)            # #seed states
-    M   <- nPerturb               # flips per seed
-    tot <- S * M                  # total trials for this attractor
-    
-    # ---- 3. assemble initial state matrix ---------------------------------
-    seedsMatIdx <- sample(selIdx,  tot, replace = TRUE)
-    flipsVec    <- sample.int(nGenes, tot, replace = TRUE)
-    
-    initMat <- matrix(0L, nrow = nGenes, ncol = tot)
-    
-    for (k in seq_len(tot)) {
-      initMat[, k] <- sel[[ which(selIdx == seedsMatIdx[k])[1] ]]
-      g <- flipsVec[k]
-      initMat[g, k] <- 1L - initMat[g, k]
-    }
-    storage.mode(initMat) <- "integer"
-    
-    # ---- 4. evolve all trials ---------------------------------------------
-    if (!is.null(.bulkSim)) {
-      # fast C path ----------------------------------------------------------
-      finalMat <- .bulkSim(boolnet, initMat,
-                           type = "synchronous", returnSeries = FALSE)
-    } else {
-      # slower R fallback ----------------------------------------------------
-      finalMat <- apply(initMat, 2, function(v) {
-        BoolNet::simulateNetwork(boolnet,
-                                 startStates  = matrix(v, nrow = nGenes),
-                                 type         = "synchronous",
-                                 returnSeries = FALSE)[, 1]
-      })
-      if (is.vector(finalMat)) finalMat <- matrix(finalMat, ncol = 1)
-    }
-    
-    finals <- apply(finalMat, 2, paste, collapse = "")
-    shEnt  <- shannonEntropy(table(finals) / tot)
-    
-    res$Entropy[i] <- shEnt
-    
-    if (showProgress) utils::setTxtProgressBar(pb, i)
-  }
-  
-  if (showProgress) close(pb)
-  
-  res$ScaledEntropy <- res$Entropy / log2(nAttr)
-  res$Stability     <- 1 - res$ScaledEntropy
-  res
+timeIt <- function(expr, name = "task") {
+  start <- Sys.time()
+  result <- force(expr)
+  end   <- Sys.time()
+  dur   <- difftime(end, start, units = "secs")
+  cat(sprintf("%s finished in %d min %.1f s\n",
+              name, as.integer(dur) %/% 60, as.numeric(dur) %% 60))
+  invisible(result)
 }

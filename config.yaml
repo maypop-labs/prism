@@ -56,7 +56,6 @@ boolMaxRegulators: 3
 boolMinPairs: 5
 boolNetStartStates: 100000
 cores: 1
-entropyMethod: bitflip   # or shuffle
 grnPositiveThreshold: 0.7
 grnNegativeThreshold: -0.6
 grnMergeStronglyConnectedComponents: False
@@ -68,8 +67,8 @@ geneSwitchesR2Cutoff: 0.03
 maxSwitchDEGs: 100000
 minCellTypeNumber: 1000
 minDEGs: 1000
-nPerturb: 10
-nSamplesState: 10
+nPerturb: 3
+nSamplesState: 3
 saveResults: True
 scenicDBs:
   - "hg38__refseq-r80__500bp_up_and_100bp_down_tss.mc9nr.feather"
