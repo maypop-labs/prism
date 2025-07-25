@@ -80,13 +80,13 @@ message("Computing entropy (", config$nSamplesState, " states per attractor, ", 
 
 handlers("txtprogressbar")
 
-entropyDf <- timeIt(computeAttractorEntropy_bitflip_vec(
+entropyDf <- timeIt(computeAttractorEntropy_memoized(
                   boolnet       = boolnet,
                   attractors    = attractors,
                   nSamplesState = config$nSamplesState,
                   nPerturb      = config$nPerturb,
                   showProgress  = TRUE
-                ), "Attractor Entropy Calculation")
+                ), "computeAttractorEntropy")
 
 # =============================================================================
 # Merge with basin size and age scores

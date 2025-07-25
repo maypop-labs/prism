@@ -5,6 +5,20 @@
 # and GRN modeling. All functions use camelCase naming convention.
 # =============================================================================
 
+# =============================================================================
+# timeIt
+#
+# =============================================================================
+
+timeIt <- function(expr, name = "task") {
+  start <- Sys.time()
+  result <- force(expr)
+  end   <- Sys.time()
+  dur   <- difftime(end, start, units = "secs")
+  cat(sprintf("%s finished in %d min %.1f s\n",
+              name, as.integer(dur) %/% 60, as.numeric(dur) %% 60))
+  invisible(result)
+}
 # -----------------------------------------------------------------------------
 # Cell Type Menu
 # -----------------------------------------------------------------------------
@@ -428,16 +442,82 @@ computeAttractorEntropy_bitflip_vec <- function(boolnet, attractors,
 }
 
 # =============================================================================
-# timeIt.R
+# computeAttractorEntropy_memoized.R
 #
+# Serial entropy / stability estimator that *memoises* BoolNet::getAttractors()
+# results so identical perturbed states are simulated only once.  This usually
+# halves wall‑clock time when nSamplesState × nPerturb ≥ 100.
+#
+# Perturbation method: **single‑gene flip** (bit‑flip) – identical to the simpler
+# non‑memoised version you implemented, but with a two‑line cache wrapper.
 # =============================================================================
 
-timeIt <- function(expr, name = "task") {
-  start <- Sys.time()
-  result <- force(expr)
-  end   <- Sys.time()
-  dur   <- difftime(end, start, units = "secs")
-  cat(sprintf("%s finished in %d min %.1f s\n",
-              name, as.integer(dur) %/% 60, as.numeric(dur) %% 60))
-  invisible(result)
+computeAttractorEntropy_memoized <- function(boolnet, attractors,
+                                             nSamplesState = 25,
+                                             nPerturb      = 25,
+                                             showProgress  = TRUE) {
+  
+  geneNames <- attractors$stateInfo$genes
+  nGenes    <- length(geneNames)
+  nAttr     <- length(attractors$attractors)
+  
+  if (showProgress)
+    pb <- utils::txtProgressBar(min = 0, max = nAttr, style = 3)
+  
+  # ---- cache for attractor look‑ups --------------------------------------
+  cache <- new.env(parent = emptyenv())
+  getFinalState <- function(state) {
+    key <- paste(state, collapse = "")
+    if (!exists(key, envir = cache, inherits = FALSE)) {
+      cache[[key]] <- BoolNet::getAttractors(
+        boolnet,
+        method      = "chosen",
+        startStates = list(state),
+        returnTable = TRUE,
+        type        = "synchronous")$attractors[[1]]$involvedStates[[1]]
+    }
+    cache[[key]]
+  }
+  
+  # ---- decode steady states once ----------------------------------------
+  decodeCache <- lapply(attractors$attractors, function(att)
+    lapply(att$involvedStates, decodeBigIntegerState, nGenes = nGenes))
+  
+  res <- data.frame(AttractorIndex = seq_len(nAttr), Entropy = NA_real_)
+  
+  for (i in seq_len(nAttr)) {
+    
+    decoded <- decodeCache[[i]]
+    if (!length(decoded)) {               # skip empty attractors
+      if (showProgress) utils::setTxtProgressBar(pb, i)
+      next
+    }
+    
+    sel <- decoded[ sample(seq_along(decoded),
+                           min(length(decoded), nSamplesState)) ]
+    
+    finals <- vector("list", nSamplesState * nPerturb)
+    idx    <- 1L
+    
+    for (s in sel) {
+      for (rep in seq_len(nPerturb)) {
+        pert <- s
+        flip <- sample.int(nGenes, 1L)
+        pert[flip] <- 1L - pert[flip]
+        finals[[idx]] <- getFinalState(pert)
+        idx <- idx + 1L
+      }
+    }
+    
+    shEnt <- shannonEntropy(table(as.character(unlist(finals))) / (idx - 1L))
+    res$Entropy[i] <- shEnt
+    
+    if (showProgress) utils::setTxtProgressBar(pb, i)
+  }
+  
+  if (showProgress) close(pb)
+  
+  res$ScaledEntropy <- res$Entropy / log2(nAttr)
+  res$Stability     <- 1 - res$ScaledEntropy
+  res
 }
