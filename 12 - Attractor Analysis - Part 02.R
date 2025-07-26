@@ -23,9 +23,7 @@ source("functions.R")
 options(warn = -1)
 config <- yaml::read_yaml("config.yaml")
 options(Seurat.object.assay.version = config$SeuratAssay)
-cl <- makePSOCKcluster(config$cores)
-clusterExport(cl, c("decodeBigIntegerState", "shannonEntropy"))
-registerDoParallel(cl)
+registerDoParallel(cores = config$cores)
 
 # --- Parameters ---
 monocle3Path        <- paste0(config$rootPath, "results/monocle3/")
@@ -111,6 +109,9 @@ agingScore <- sum(attractorDfScores$AttractorScore, na.rm = TRUE)
 # =============================================================================
 # Output
 # =============================================================================
+
+cat("\014")
+cat("\n")
 
 print(attractorDfScores)
 cat("\nOverall Aging Score =", agingScore, "\n")

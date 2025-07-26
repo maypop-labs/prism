@@ -50,14 +50,14 @@ nameVec:
   
 # Experiment parameters
 ageCorrelation: 0.6
-attInitialThreshold: 0.25
+attInitialThreshold: 0.10
 attFinalThreshold: 0.5
 boolMaxRegulators: 3
 boolMinPairs: 5
 boolNetStartStates: 100000
 cores: 1
 grnPositiveThreshold: 0.7
-grnNegativeThreshold: -0.6
+grnNegativeThreshold: -0.7
 grnMergeStronglyConnectedComponents: False
 grnOnlyPositiveCorr: False
 grnRemoveTerminalNodes: False
@@ -69,7 +69,7 @@ minCellTypeNumber: 1000
 minDEGs: 1000
 nPerturb: 25
 nSamplesState: 25
-saveResults: False
+saveResults: True
 scenicDBs:
   - "hg38__refseq-r80__500bp_up_and_100bp_down_tss.mc9nr.feather"
   - "hg38__refseq-r80__10kb_up_and_down_tss.mc9nr.feather"

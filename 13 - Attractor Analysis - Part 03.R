@@ -44,7 +44,6 @@ attractorDfFile     <- paste0(rdsPath, cellType, "_", cellTrajectory, "_attracto
 geneMapFile         <- paste0(rdsPath, cellType, "_", cellTrajectory, "_gene_map.rds")
 attractorScoresFile <- paste0(rdsPath, cellType, "_", cellTrajectory, "_attractor_df_scores.rds")
 
-
 dir.create(graphMlPath, recursive = TRUE, showWarnings = FALSE)
 dir.create(plotPath,    recursive = TRUE, showWarnings = FALSE)
 dir.create(rdsPath,     recursive = TRUE, showWarnings = FALSE)
@@ -134,12 +133,6 @@ for (gene in genes) {
 singleKD <- singleKD %>% mutate(UnperturbedScore = initialScore, Delta = AgingScore - initialScore) %>% arrange(AgingScore)
 singleOE <- singleOE %>% mutate(UnperturbedScore = initialScore, Delta = AgingScore - initialScore) %>% arrange(AgingScore)
 
-if (config$saveResults) {
-  message("Saving single-gene perturbation files to: ", singleKDFile, " and ", singleOEFile)
-  saveRDS(singleKD, file = singleKDFile)
-  saveRDS(singleOE, file = singleOEFile)
-}
-
 # --- Double-Gene Perturbations ---
 topKD <- head(singleKD$Gene, 5)
 topOE <- head(singleOE$Gene, 5)
@@ -162,8 +155,12 @@ doubleMix <- scorePairs(doubleMix, c(0, 1))
 cat("\014")
 cat("\n")
 
-
 if (config$saveResults) {
+
+  message("Saving single-gene perturbation files to: ", singleKDFile, " and ", singleOEFile)
+  saveRDS(singleKD, file = singleKDFile)
+  saveRDS(singleOE, file = singleOEFile)
+  
   message("Saving double-gene perturbation files to: ", doubleKDFile, ", ", doubleOEFile, ", and ", doubleMixFile)
   saveRDS(doubleKD,  file = doubleKDFile)
   saveRDS(doubleOE,  file = doubleOEFile)

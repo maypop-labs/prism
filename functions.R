@@ -187,79 +187,29 @@ shannonEntropy <- function(p) {
   -sum(p * log2(p))
 }
 
-# -----------------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-#  computeAttractorEntropy  (serial version, no parallel back-end required)
-# -----------------------------------------------------------------------------
-#  • boolnet      : BoolNet object returned by load/run pipeline
-#  • attractors   : list returned by BoolNet::getAttractors()
-#  • nSamplesState: how many distinct states to sample per attractor
-#  • nPerturb     : how many perturbation runs per sampled state
-#  • showProgress : TRUE ⇒ text progress-bar in console
-# -----------------------------------------------------------------------------
-
-computeAttractorEntropy <- function(boolnet, attractors,
-                                    nSamplesState = 25,
-                                    nPerturb      = 25,
-                                    showProgress  = TRUE) {
-  
+computeAttractorEntropy <- function(boolnet, attractors, nSamplesState = 5, nPerturb = 10) {
   geneNames <- attractors$stateInfo$genes
-  nGenes    <- length(geneNames)
-  nAttr     <- length(attractors$attractors)
+  nGenes <- length(geneNames)
+  results <- data.frame(AttractorIndex = seq_along(attractors$attractors), Entropy = numeric(length(attractors$attractors)))
   
-  if (showProgress)
-    pb <- utils::txtProgressBar(min = 0, max = nAttr, style = 3)
-  
-  results <- data.frame(
-    AttractorIndex = seq_len(nAttr),
-    Entropy        = NA_real_
-  )
-  
-  for (i in seq_len(nAttr)) {
+  for (i in seq_along(attractors$attractors)) {
+    att <- attractors$attractors[[i]]
+    allStates <- att$involvedStates
+    if (length(allStates) == 0) next
+    sel <- if (length(allStates) > nSamplesState) sample(allStates, nSamplesState) else allStates
     
-    attStates <- attractors$attractors[[i]]$involvedStates
-    if (length(attStates) == 0) {                # safeguard
-      if (showProgress) utils::setTxtProgressBar(pb, i)
-      next
-    }
-    
-    ## ── sample up to nSamplesState unique states ────────────────────────────
-    sel <- if (length(attStates) > nSamplesState)
-      sample(attStates, nSamplesState)
-    else
-      attStates
-    
-    ## ── run perturbations and collect final attractor IDs ───────────────────
-    entropies <- vapply(sel, function(stateVal) {
-      
+    entropies <- sapply(sel, function(stateVal) {
       decoded <- decodeBigIntegerState(stateVal, nGenes)
       names(decoded) <- geneNames
-      
-      finals <- replicate(nPerturb, {
-        # here we shuffle Boolean functions to simulate perturbation
-        pert  <- BoolNet::perturbNetwork(boolnet,
-                                         method   = "shuffle",
-                                         perturb  = "functions")
-        BoolNet::getAttractors(pert, method = "chosen",
-                               startStates  = list(decoded),
-                               returnTable  = TRUE,
-                               type         = "synchronous")$
-          attractors[[1]]$involvedStates[[1]]
+      final <- replicate(nPerturb, {
+        pert <- perturbNetwork(boolnet, method = "shuffle", perturb = "functions")
+        getAttractors(pert, method = "chosen", startStates = list(decoded), returnTable = TRUE, type = "synchronous")$attractors[[1]]$involvedStates[[1]]
       })
-      
-      shannonEntropy(table(as.character(finals)) / length(finals))
-      
-    }, numeric(1))
-    
+      shannonEntropy(table(as.character(final)) / length(final))
+    })
     results$Entropy[i] <- mean(entropies, na.rm = TRUE)
-    
-    if (showProgress) utils::setTxtProgressBar(pb, i)
   }
-  
-  if (showProgress) close(pb)
-  
-  results$ScaledEntropy <- results$Entropy / log2(nAttr)
-  results$Stability     <- 1 - results$ScaledEntropy
+  results$ScaledEntropy <- results$Entropy / log2(nrow(results))
+  results$Stability <- 1 - results$ScaledEntropy
   results
 }
