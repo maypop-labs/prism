@@ -80,7 +80,7 @@ message("Computing entropy (", config$nSamplesState, " states per attractor, ", 
 
 handlers("txtprogressbar")
 
-entropyDf <- timeIt(computeAttractorEntropy_memoized(
+entropyDf <- timeIt(computeAttractorEntropy(
                   boolnet       = boolnet,
                   attractors    = attractors,
                   nSamplesState = config$nSamplesState,

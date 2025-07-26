@@ -67,9 +67,9 @@ geneSwitchesR2Cutoff: 0.03
 maxSwitchDEGs: 100000
 minCellTypeNumber: 1000
 minDEGs: 1000
-nPerturb: 3
-nSamplesState: 3
-saveResults: True
+nPerturb: 25
+nSamplesState: 25
+saveResults: False
 scenicDBs:
   - "hg38__refseq-r80__500bp_up_and_100bp_down_tss.mc9nr.feather"
   - "hg38__refseq-r80__10kb_up_and_down_tss.mc9nr.feather"
