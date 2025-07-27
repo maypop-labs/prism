@@ -79,6 +79,9 @@ $RECYCLE.BIN/
 # macOS (for cross-platform teams)
 .DS_Store
 
+# other clutter
+*.zip
+
 # Bioinformatics: SCENIC
 int/
 output/
