@@ -69,6 +69,7 @@ geneSwitchesR2Cutoff: 0.03
 maxSwitchDEGs: 100000
 minCellTypeNumber: 1000
 minDEGs: 1000
+nfeatures: 2000
 nPerturb: 30
 nSamplesState: 20
 saveResults: True

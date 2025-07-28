@@ -5,40 +5,18 @@
 # HumanPrimaryCellAtlas, and generate PCA/UMAP plots for each cell type.
 # =============================================================================
 
-# --- Libraries ---
-library(foreach)
-library(doParallel)
-library(Seurat)
-library(celldex)
-library(SingleR)
-library(SingleCellExperiment)
-library(ggplot2)
-library(tools)
-
-# --- Config and options ---
-options(warn = -1)
-config <- yaml::read_yaml("config.yaml")
-options(Seurat.object.assay.version = config$SeuratAssay)
-registerDoParallel(cores = config$cores)
-
-# --- Parameters ---
-plotPath       <- paste0(config$rootPath, "results/plots/")
-rdsPath        <- paste0(config$rootPath, "results/rds/")
-tsvPath        <- paste0(config$rootPath, "results/tsv/")
-txtPath        <- paste0(config$rootPath, "results/txt/")
-seuratFile     <- paste0(rdsPath, "merged_seurat.rds")
-
-dir.create(plotPath, recursive = TRUE, showWarnings = FALSE)
-dir.create(rdsPath,  recursive = TRUE, showWarnings = FALSE)
-dir.create(tsvPath,  recursive = TRUE, showWarnings = FALSE)
-dir.create(txtPath,  recursive = TRUE, showWarnings = FALSE)
+# --- Initialization ---
+source("functions.R")
+source("pathManager.R")
+config   <- initializeScript()
+pathInfo <- initializeInteractivePaths()
+paths    <- pathInfo$paths
+ensureProjectDirectories(paths)
+clearConsole()
 
 # --- Load Merged Seurat Object ---
-if (!file.exists(seuratFile)) stop("Merged Seurat object not found")
-mergedSeurat <- readRDS(seuratFile)
-
-cat("\014")
-cat("\n")
+if (!file.exists(paths$static$mergedSeurat)) stop("Merged Seurat object not found")
+mergedSeurat <- readRDS(paths$static$mergedSeurat)
 
 # --- Assign Cell Types Using SingleR ---
 message("Assigning cell types using SingleR")
@@ -53,7 +31,7 @@ cellTypes <- names(cellTypeFreq[cellTypeFreq >= config$minCellTypeNumber])
 message("Cell types: ", paste(cellTypes, collapse = ", "))
 
 if (config$saveResults) {
-  saveRDS(cellTypes, file = paste0(rdsPath, "cell_types.rds"))
+  saveRDS(cellTypes, file = paste0(paths$base$rds, "cell_types.rds"))
 }
 
 # --- Process Each Cell Type ---
@@ -62,7 +40,7 @@ for (ct in cellTypes) {
   message("=== Processing cell type: ", readableCt, " ===")
 
   ctObj <- subset(mergedSeurat, subset = cellType == ct)
-  ctObj <- FindVariableFeatures(ctObj, nfeatures = 2000)
+  ctObj <- FindVariableFeatures(ctObj, nfeatures = config$nfeatures)
   varGenes <- VariableFeatures(ctObj)
   ctObj <- ScaleData(ctObj, features = varGenes)
   ctObj <- RunPCA(ctObj, features = varGenes)
@@ -96,7 +74,7 @@ for (ct in cellTypes) {
   # --- Save Results ---
   if (config$saveResults) {
     
-    # save cellTypeFreq table as tsv file
+    message("Saving cell type frequency table as TSV file")
     cellTypeFreqDf <- data.frame(
       cell_type = names(cellTypeFreq),
       number = as.integer(cellTypeFreq),
@@ -105,7 +83,7 @@ for (ct in cellTypes) {
     )
     write.table(
       cellTypeFreqDf,
-      file = file.path(tsvPath, "cell_types.tsv"),
+      file = file.path(paths$static$cellTypeFreq),
       sep = "\t",
       quote = FALSE,
       row.names = FALSE
@@ -118,30 +96,27 @@ for (ct in cellTypes) {
       topGenes <- names(sort(loadings[, pcName], decreasing = TRUE))[1:50]
       write.table(
         topGenes,
-        file = paste0(txtPath, ct, "_PCA_top_genes_", pcName, ".txt"),
+        file = paste0(paths$base$txt, ct, "_PCA_top_genes_", pcName, ".txt"),
         quote = FALSE, row.names = FALSE, col.names = FALSE
       )
     }
     
     message("Saving plots for ", readableCt)
     
-    ggsave(paste0(plotPath, "figure3_", readableCt, ".png"), pPCA,
+    ggsave(paste0(paths$base$plots, "figure3_", readableCt, ".png"), pPCA,
            width = config$figWidth,
            height = config$figHeight,
            dpi = config$figDPI,
            units = "in")
-    ggsave(paste0(plotPath, "figure4_", readableCt, ".png"), pUMAP,
+    ggsave(paste0(paths$base$plots, "figure4_", readableCt, ".png"), pUMAP,
            width = config$figWidth,
            height = config$figHeight,
            dpi = config$figDPI,
            units = "in")
     
     message("Saving Seurat file for ", readableCt)
-    saveRDS(ctObj, file = paste0(rdsPath, ct, "_seurat.rds"))
+    saveRDS(ctObj, file = paste0(paths$base$rds, ct, "_seurat.rds"))
   }
 }
-
-cat("\014")
-cat("\n")
 
 message("Done!")

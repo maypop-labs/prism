@@ -9,14 +9,14 @@
 # =============================================================================
 
 
-# --- Source functions ---
+# --- Initialization ---
 source("functions.R")
 source("pathManager.R")
-
 config   <- initializeScript()
 pathInfo <- initializeInteractivePaths()
 paths    <- pathInfo$paths
 ensureProjectDirectories(paths)
+clearConsole()
 
 # --- Load and Annotate Seurat Objects ---
 seuratList <- vector("list", length(config$nameVec))
@@ -87,18 +87,16 @@ pUMAP <- DimPlot(mergedSeurat,
   labs(x = "UMAP1") +
   labs(y = "UMAP2")
 
-clearConsole()
-
 # --- Save Results ---
 if (config$saveResults) {
   
   message("Saving plots")
-  ggsave(paste0(paths$base$plots, "figure1.png"), pPCA,
+  ggsave(paste0(paths$static$pcaAllCells), pPCA,
          width = config$figWidth,
          height = config$figHeight,
          dpi = config$figDPI,
          units = "in")
-  ggsave(paste0(paths$base$plots, "figure2.png"), pUMAP,
+  ggsave(paste0(paths$static$umapAllCells), pUMAP,
          width = config$figWidth,
          height = config$figHeight,
          dpi = config$figDPI,
