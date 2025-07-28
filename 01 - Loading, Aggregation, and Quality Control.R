@@ -10,8 +10,12 @@
 
 
 # --- Initialization ---
-source("functions.R")
+source("attractorManager.R")
+source("booleanManager.R")
 source("pathManager.R")
+source("setupManager.R")
+source("uiManager.R")
+
 config   <- initializeScript()
 pathInfo <- initializeInteractivePaths()
 paths    <- pathInfo$paths
