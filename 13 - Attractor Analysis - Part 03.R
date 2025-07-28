@@ -13,7 +13,7 @@ library(BoolNet)
 library(monocle3)
 library(dplyr)
 library(gmp)
-library(progress)  # For progress bars
+library(progress)
 
 # --- Source functions ---
 source("functions.R")

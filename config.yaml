@@ -60,7 +60,7 @@ boolTimeLimit: 20     # Minutes per gene
 cores: 1
 grnPositiveThreshold: 0.7
 grnNegativeThreshold: -0.7
-grnMergeStronglyConnectedComponents: False
+grnMergeStronglyConnectedComponents: True
 grnOnlyPositiveCorr: False
 grnRemoveTerminalNodes: False
 fdrLevel: 0.05

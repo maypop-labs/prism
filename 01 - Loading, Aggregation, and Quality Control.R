@@ -8,48 +8,21 @@
 # This script has a long runtime. Grab a cup of coffee. C[_]
 # =============================================================================
 
-# --- Libraries ---
-library(foreach)
-library(doParallel)
-library(Seurat)
-library(SeuratData)
-library(SeuratDisk)
-library(celldex)
-library(data.table)
-library(SingleR)
-library(SingleCellExperiment)
-library(ggplot2)
-library(Matrix)
-library(igraph)
-library(mgcv)
-library(monocle3)
-library(purrr)
-library(tools)
-library(yaml)
 
-# --- Config and Options ---
-options(warn = -1)
-config <- yaml::read_yaml("config.yaml")
-options(Seurat.object.assay.version = config$SeuratAssay)
-registerDoParallel(cores = config$cores)
+# --- Source functions ---
+source("functions.R")
+source("pathManager.R")
 
-# --- Parameters ---
-cellrangerPath <- paste0(config$rootPath, "cellranger_counts/", config$nameVec, "_output/outs/filtered_feature_bc_matrix/")
-plotPath       <- paste0(config$rootPath, "results/plots/")
-rdsPath        <- paste0(config$rootPath, "results/rds/")
-seuratFile     <- paste0(rdsPath, "merged_seurat.rds")
-
-dir.create(plotPath, recursive = TRUE, showWarnings = FALSE)
-dir.create(rdsPath,  recursive = TRUE, showWarnings = FALSE)
-
-cat("\014")
-cat("\n")
+config   <- initializeScript()
+pathInfo <- initializeInteractivePaths()
+paths    <- pathInfo$paths
+ensureProjectDirectories(paths)
 
 # --- Load and Annotate Seurat Objects ---
 seuratList <- vector("list", length(config$nameVec))
 for (i in seq_along(config$nameVec)) {
   message("=== Loading: ", config$nameVec[i], " ===")
-  counts <- Read10X(data.dir = cellrangerPath[i])
+  counts <- Read10X(data.dir = paths$cellranger[i])
   obj <- CreateSeuratObject(counts = counts, project = config$nameVec[i])
   obj$person <- config$nameVec[i]
   obj$age <- config$ageVec[i]
@@ -114,26 +87,25 @@ pUMAP <- DimPlot(mergedSeurat,
   labs(x = "UMAP1") +
   labs(y = "UMAP2")
 
-cat("\014")
-cat("\n")
+clearConsole()
 
 # --- Save Results ---
 if (config$saveResults) {
   
   message("Saving plots")
-  ggsave(paste0(plotPath, "figure1.png"), pPCA,
+  ggsave(paste0(paths$base$plots, "figure1.png"), pPCA,
          width = config$figWidth,
          height = config$figHeight,
          dpi = config$figDPI,
          units = "in")
-  ggsave(paste0(plotPath, "figure2.png"), pUMAP,
+  ggsave(paste0(paths$base$plots, "figure2.png"), pUMAP,
          width = config$figWidth,
          height = config$figHeight,
          dpi = config$figDPI,
          units = "in")
   
   message("Saving merged Seurat object to disk")
-  saveRDS(mergedSeurat, file = seuratFile)
+  saveRDS(mergedSeurat, file = paths$static$mergedSeurat)
 }
 
 message("Done!")
