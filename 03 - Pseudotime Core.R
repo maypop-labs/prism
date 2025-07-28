@@ -6,45 +6,25 @@
 # and save valid sub-trajectories.
 # =============================================================================
 
-# --- Libraries ---
-library(foreach)
-library(doParallel)
-library(Seurat)
-library(monocle3)
-library(SingleCellExperiment)
-library(Matrix)
-library(igraph)
-library(tools)
+# --- Initialization ---
+source("managers/attractorManager.R")
+source("managers/booleanManager.R")
+source("managers/pathManager.R")
+source("managers/setupManager.R")
+source("managers/uiManager.R")
 
-# --- Source functions ---
-source("functions.R")
-
-# --- Config and options ---
-options(warn = -1)
-config <- yaml::read_yaml("config.yaml")
-options(Seurat.object.assay.version = config$SeuratAssay)
-registerDoParallel(cores = config$cores)
-
-# --- Parameters ---
-trajRootAge <- min(config$ageVec)
-plotPath    <- paste0(config$rootPath, "results/plots/")
-rdsPath     <- paste0(config$rootPath, "results/rds/")
-tsvPath     <- paste0(config$rootPath, "results/tsv/")
-txtPath     <- paste0(config$rootPath, "results/txt/")
-cellTypes   <- readRDS(paste0(rdsPath, "cell_types.rds"))
-cellType    <- showCellTypeMenu(cellTypes)
-seuratFile  <- paste0(rdsPath, cellType, "_seurat.rds")
-
-dir.create(plotPath, recursive = TRUE, showWarnings = FALSE)
-dir.create(rdsPath,  recursive = TRUE, showWarnings = FALSE)
-dir.create(tsvPath,  recursive = TRUE, showWarnings = FALSE)
-dir.create(txtPath,  recursive = TRUE, showWarnings = FALSE)
+config   <- initializeScript()
+pathInfo <- initializeInteractivePaths(needsCellType = TRUE)
+paths    <- pathInfo$paths
+cellType <- pathInfo$cellType
+ctPaths  <- getCellTypeFilePaths(paths$base, cellType)
+ensureProjectDirectories(paths)
+clearConsole()
 
 # --- Load Seurat Object ---
-
-if (!file.exists(seuratFile)) stop("Seurat RDS file not found: ", seuratFile)
+if (!file.exists(ctPaths$seuratObject)) stop("Seurat RDS file not found: ", ctPaths$seuratObject)
 message("Loading Seurat object for cell type: ", cellType)
-seuratObj <- readRDS(seuratFile)
+seuratObj <- readRDS(ctPaths$seuratObject)
 
 cat("\014")
 cat("\n")
@@ -57,8 +37,8 @@ convertSeuratToCDS <- function(seuratObj) {
   geneMeta <- data.frame(gene_id = genes, gene_short_name = genes, row.names = genes)
   new_cell_data_set(rawCounts, cellMeta, geneMeta)
 }
-
 cds <- convertSeuratToCDS(seuratObj)
+rootAge = min(config$ageVec, na.rm = TRUE)
 
 # --- Pseudotime Rooting ---
 getRootCells <- function(cds, rootAge) {
@@ -74,8 +54,8 @@ runPseudotime <- function(cds, rootCells) {
   order_cells(cds, reduction_method = "UMAP", root_cells = rootCells)
 }
 
-message("Running pseudotime analysis from age ", trajRootAge)
-rootCells <- getRootCells(cds, trajRootAge)
+message("Running pseudotime analysis from age ", rootAge)
+rootCells <- getRootCells(cds, rootAge)
 cds <- runPseudotime(cds, rootCells)
 
 # --- Identify Valid Branches ---
@@ -111,10 +91,10 @@ for (leaf in leafNodes) {
     message("    → Correlation with age: ", round(corWithAge, 3))
     message("    → Cells: ", ncol(subCds))
 
-    subCds <- runPseudotime(subCds, rootCells = getRootCells(subCds, trajRootAge))
+    subCds <- runPseudotime(subCds, rootCells = getRootCells(subCds, rootAge))
 
     if (config$saveResults) {
-      saveDir <- paste0(config$rootPath, "results/monocle3/monocle3_", cellType, "_", leaf)
+      saveDir <- paste0(paths$base$monocle3, "monocle3_", cellType, "_", leaf)
       message("Saving trajectory to: ", saveDir)
       save_monocle_objects(cds = subCds, directory_path = saveDir, comment = cellType)
     }
@@ -126,18 +106,13 @@ branch_stats <- branch_stats |>
   dplyr::filter(!is.na(corWithAge) & corWithAge >= 0) |>  # drop NA and negatives
   dplyr::arrange(dplyr::desc(corWithAge))                 # sort highest to lowest
 
-cat("\014")
-cat("\n")
-
 # --- save the trajectory report and the trajectory names vector ---
 if (config$saveResults) {
-  reportFile <- paste0(tsvPath, "trajectory_age_correlations_", cellType, ".tsv")
-  readr::write_tsv(branch_stats, reportFile)
-  message("Saved branch statistics report to ", reportFile)
+  readr::write_tsv(branch_stats, ctPaths$trajectoryCorrelations)
+  message("Saved branch statistics report to ", ctPaths$trajectoryCorrelations)
 
-  namesFile <- paste0(rdsPath, "retained_trajectories_", cellType, ".rds")
-  saveRDS(retainedLeaves, namesFile)
-  message("Saved retained trajectory names to ", namesFile)
+  saveRDS(retainedLeaves, ctPaths$retainedTrajectories)
+  message("Saved retained trajectory names to ", ctPaths$retainedTrajectories)
   
 }
 

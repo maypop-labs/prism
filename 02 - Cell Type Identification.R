@@ -6,8 +6,12 @@
 # =============================================================================
 
 # --- Initialization ---
-source("functions.R")
-source("pathManager.R")
+source("managers/attractorManager.R")
+source("managers/booleanManager.R")
+source("managers/pathManager.R")
+source("managers/setupManager.R")
+source("managers/uiManager.R")
+
 config   <- initializeScript()
 pathInfo <- initializeInteractivePaths()
 paths    <- pathInfo$paths
@@ -16,6 +20,7 @@ clearConsole()
 
 # --- Load Merged Seurat Object ---
 if (!file.exists(paths$static$mergedSeurat)) stop("Merged Seurat object not found")
+message("Loading merged Seurat RDS file")
 mergedSeurat <- readRDS(paths$static$mergedSeurat)
 
 # --- Assign Cell Types Using SingleR ---
