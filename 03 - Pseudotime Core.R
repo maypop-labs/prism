@@ -56,6 +56,7 @@ runPseudotime <- function(cds, rootCells) {
 
 message("Running pseudotime analysis from age ", rootAge)
 rootCells <- getRootCells(cds, rootAge)
+if (length(rootCells) == 0) { stop("No cells found for root age: ", rootAge) }
 cds <- runPseudotime(cds, rootCells)
 
 # --- Identify Valid Branches ---
@@ -69,7 +70,9 @@ retained <- 0
 # --- create a table for storing leaf node names and correlations ---
 branch_stats <- tibble::tibble(
   leaf        = character(),   # branch (vertex) ID
-  corWithAge  = numeric()      # Pearson r between pseudotime and age
+  nCells      = numeric(),
+  corWithAge  = numeric(),
+  pValue      = numeric()
 )
 retainedLeaves <- character()
 
@@ -79,19 +82,34 @@ for (leaf in leafNodes) {
   cellBarcodes <- rownames(closestVertex)[closestVertex[, 1] %in% pathNodeIdx]
   subCds       <- cds[, cellBarcodes]
   pt           <- pseudotime(subCds)
-  corWithAge   <- suppressWarnings(cor(pt, colData(subCds)$age))
+  nCells       <- length(pt)
+  
+  #corWithAge   <- suppressWarnings(cor(pt, colData(subCds)$age))
+  #pValue <- 1.0
+  #if (length(pt) > 3) {
+  #  corTest <- cor.test(pt, colData(subCds)$age)
+  #  pValue  <- corTest$p.value
+  #}
+  
+  # Use Spearman as primary metric
+  corWithAge <- cor(pt, colData(subCds)$age, method = "spearman", use = "complete.obs")
+  pValue <- 1.0
+  if (nCells > 3) {
+    corTest <- cor.test(pt, colData(subCds)$age, method = "spearman")
+    pValue <- corTest$p.value
+  }
   
   # Record the statistics regardless of whether the branch is retained
-  branch_stats <- dplyr::add_row(branch_stats, leaf = leaf, corWithAge = corWithAge)
+  branch_stats <- dplyr::add_row(branch_stats, leaf = leaf, nCells = nCells, corWithAge = corWithAge, pValue = pValue)
 
-  if (is.finite(corWithAge) && corWithAge >= config$ageCorrelation) {
+  if (is.finite(corWithAge) && (corWithAge >= config$ageCorrelation) && (pValue < 0.05) && (nCells > 3)) {
     retained <- retained + 1
     retainedLeaves <- c(retainedLeaves, leaf)
     message("--- Branch retained from root to leaf ", leaf)
     message("    → Correlation with age: ", round(corWithAge, 3))
     message("    → Cells: ", ncol(subCds))
 
-    subCds <- runPseudotime(subCds, rootCells = getRootCells(subCds, rootAge))
+    #subCds <- runPseudotime(subCds, rootCells = getRootCells(subCds, rootAge))
 
     if (config$saveResults) {
       saveDir <- paste0(paths$base$monocle3, "monocle3_", cellType, "_", leaf)
