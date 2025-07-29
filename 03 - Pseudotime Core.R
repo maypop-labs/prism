@@ -83,6 +83,17 @@ for (leaf in leafNodes) {
   subCds       <- cds[, cellBarcodes]
   pt           <- pseudotime(subCds)
   nCells       <- length(pt)
+
+  cat("=== Debugging Branch", leaf, "===\n")
+  cat("Number of cells:", ncol(subCds), "\n")
+  cat("Pseudotime summary:\n")
+  print(summary(pt))
+  cat("Age summary:\n") 
+  print(summary(colData(subCds)$age))
+  cat("NA count in pseudotime:", sum(is.na(pt)), "\n")
+  cat("NA count in age:", sum(is.na(colData(subCds)$age)), "\n")
+  cat("Complete pairs available:", sum(!is.na(pt) & !is.na(colData(subCds)$age)), "\n")
+  cat("========================\n")
   
   #corWithAge   <- suppressWarnings(cor(pt, colData(subCds)$age))
   #pValue <- 1.0
@@ -92,11 +103,14 @@ for (leaf in leafNodes) {
   #}
   
   # Use Spearman as primary metric
-  corWithAge <- cor(pt, colData(subCds)$age, method = "spearman", use = "complete.obs")
-  pValue <- 1.0
-  if (nCells > 3) {
-    corTest <- cor.test(pt, colData(subCds)$age, method = "spearman")
-    pValue <- corTest$p.value
+  pValue     <- 1.0
+  corWithAge <- 0.0
+  validPairs <- !is.na(pt) & !is.na(colData(subCds)$age) & is.finite(pt)
+  if (sum(validPairs) < 3) {
+    warning("Branch ", leaf, " has insufficient complete pairs for correlation")
+  } else {
+    corWithAge <- suppressWarnings(cor(pt, colData(subCds)$age, method = "spearman", use = "complete.obs"))
+    pValue <- corWithAge$p.value
   }
   
   # Record the statistics regardless of whether the branch is retained
