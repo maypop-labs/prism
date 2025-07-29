@@ -9,6 +9,7 @@
 source("managers/attractorManager.R")
 source("managers/booleanManager.R")
 source("managers/pathManager.R")
+source("managers/pseudotimeManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
 
