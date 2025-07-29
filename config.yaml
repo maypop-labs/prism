@@ -49,7 +49,7 @@ nameVec:
   - "76yo"
   
 # Experiment parameters
-ageCorrelation: 0.6
+ageCorrelation: 0.5
 attInitialThreshold: 0.10
 attFinalThreshold: 0.5
 boolMaxRegulators: 3

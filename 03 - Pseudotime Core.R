@@ -109,8 +109,9 @@ for (leaf in leafNodes) {
   if (sum(validPairs) < 3) {
     warning("Branch ", leaf, " has insufficient complete pairs for correlation")
   } else {
-    corWithAge <- suppressWarnings(cor(pt, colData(subCds)$age, method = "spearman", use = "complete.obs"))
-    pValue <- corWithAge$p.value
+    corTest    <- cor.test(pt, colData(subCds)$age, method = "spearman", use = "complete.obs")
+    corWithAge <- corTest$estimate
+    pValue     <- corTest$p.value
   }
   
   # Record the statistics regardless of whether the branch is retained
