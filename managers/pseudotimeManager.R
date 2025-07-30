@@ -69,19 +69,19 @@ plotAgeVsPseudotime <- function(subCds, leafName, correlationResult) {
   # Extract data
   pt <- pseudotime(subCds)
   ages <- colData(subCds)$age
-  persons <- colData(subCds)$person
+  donor_ids <- colData(subCds)$donor_id
   
   # Create data frame
   plotData <- data.frame(
     pseudotime = pt,
     age = ages,
-    person = persons
+    donor_id = donor_ids
   ) %>%
     filter(!is.na(pseudotime) & is.finite(pseudotime) & !is.na(age))
   
   # Create the plot
   p <- ggplot(plotData, aes(x = pseudotime, y = age)) +
-    geom_point(aes(color = as.factor(person)), alpha = 0.6, size = 0.8) +
+    geom_point(aes(color = as.factor(donor_id)), alpha = 0.6, size = 0.8) +
     geom_smooth(method = "lm", se = TRUE, color = "black", linewidth = 1) +
     labs(
       title = paste0("Trajectory ", leafName),
@@ -91,7 +91,7 @@ plotAgeVsPseudotime <- function(subCds, leafName, correlationResult) {
                         ", Donors: ", correlationResult$n_donors),
       x = "Pseudotime",
       y = "Donor Age",
-      color = "Person"
+      color = "donor_id"
     ) +
     theme_minimal() +
     theme(
