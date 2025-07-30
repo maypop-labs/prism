@@ -13,7 +13,13 @@ calculateTrajectoryCorrelation <- function(subCds) {
   valid_idx <- !is.na(pt) & is.finite(pt) & !is.na(ages)
   
   if (sum(valid_idx) < 10) {
-    return(list(correlation = NA, p_value = NA, method = "insufficient_data"))
+    return(list(
+      correlation = NA, 
+      p_value = NA, 
+      method = "insufficient_data",
+      n_cells = 0,
+      n_donors = 0
+    ))
   }
   
   pt_clean <- pt[valid_idx]
@@ -21,49 +27,13 @@ calculateTrajectoryCorrelation <- function(subCds) {
   donors_clean <- donors[valid_idx]
   n_donors <- length(unique(donors_clean))
   
-  # Primary test: Spearman correlation (tests monotonic relationship)
+  # Spearman correlation test
   spearman_test <- cor.test(pt_clean, ages_clean, method = "spearman")
   
-  # Secondary test: Mixed-effects model (if enough donors)
-  lme_result <- NULL
-  if (n_donors >= 4) {
-    tryCatch({
-      df <- data.frame(
-        pseudotime = pt_clean, 
-        age = ages_clean, 
-        donor_id = as.factor(donors_clean)
-      )
-      lme_model <- lmer(pseudotime ~ age + (1|donor_id), data = df)
-      lme_summary <- summary(lme_model)
-      
-      lme_result <- list(
-        age_coefficient = lme_summary$coefficients["age", "Estimate"],
-        age_pvalue = lme_summary$coefficients["age", "Pr(>|t|)"],
-        converged = TRUE
-      )
-    }, error = function(e) { 
-      lme_result <- list(age_coefficient = NA, age_pvalue = NA, converged = FALSE)
-    })
-  }
-  
-  # Choose primary result based on available data
-  if (!is.null(lme_result) && lme_result$converged) {
-    primary_correlation = lme_result$age_coefficient  # Effect size from mixed model
-    primary_p_value = lme_result$age_pvalue
-    method_used = "mixed_effects"
-  } else {
-    primary_correlation = spearman_test$estimate
-    primary_p_value = spearman_test$p.value  
-    method_used = "spearman_correlation"
-  }
-  
   return(list(
-    correlation = primary_correlation,
-    p_value = primary_p_value,
-    method = method_used,
-    spearman_rho = spearman_test$estimate,
-    spearman_p = spearman_test$p.value,
-    lme_result = lme_result,
+    correlation = spearman_test$estimate,
+    p_value = spearman_test$p.value,
+    method = "spearman_correlation",
     n_cells = sum(valid_idx),
     n_donors = n_donors
   ))
