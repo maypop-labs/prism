@@ -28,8 +28,6 @@ calculateTrajectoryCorrelation <- function(subCds) {
   lme_result <- NULL
   if (n_donors >= 4) {
     tryCatch({
-      library(lme4)
-      library(lmerTest)
       df <- data.frame(
         pseudotime = pt_clean, 
         age = ages_clean, 

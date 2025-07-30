@@ -29,7 +29,7 @@ for (i in seq_along(config$nameVec)) {
   message("=== Loading: ", config$nameVec[i], " ===")
   counts <- Read10X(data.dir = paths$cellranger[i])
   obj <- CreateSeuratObject(counts = counts, project = config$nameVec[i])
-  obj$person <- config$nameVec[i]
+  obj$donor_id <- config$nameVec[i]
   obj$age <- config$ageVec[i]
   seuratList[[i]] <- obj
 }

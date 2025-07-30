@@ -74,6 +74,7 @@ loadRequiredLibraries <- function(suppressMessages = TRUE) {
   standardLibs <- c(
     # Core R packages
     "foreach", "doParallel", "yaml", "tools", "dplyr", "tidyr", "purrr", "readr",
+
     
     # Single-cell analysis
     "Seurat", "SeuratData", "SeuratDisk", "monocle3", "SingleCellExperiment",
@@ -86,7 +87,7 @@ loadRequiredLibraries <- function(suppressMessages = TRUE) {
     "ggplot2", "ggraph", "data.table", "mgcv", "gmp", "progress", "progressr",
     
     # Extended analysis
-    "tidyverse"
+    "tidyverse", "lme4", "lmerTest"
   )
   
   # Track loading results
