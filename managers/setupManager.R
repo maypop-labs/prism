@@ -84,7 +84,8 @@ loadRequiredLibraries <- function(suppressMessages = TRUE) {
     "BoolNet", "igraph", "SCENIC", "GENIE3", "GeneSwitches",
     
     # Visualization and utilities
-    "ggplot2", "ggraph", "data.table", "mgcv", "gmp", "progress", "progressr",
+    "ggplot2", "ggraph", "data.table", "mgcv", "gmp", "patchwork", "progress",
+    "progressr",
     
     # Extended analysis
     "tidyverse", "lme4", "lmerTest"

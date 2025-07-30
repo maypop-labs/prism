@@ -126,5 +126,30 @@ if (config$saveResults) {
   
 }
 
+if (config$saveResults && length(retainedLeaves) > 0) {
+  message("Creating age vs pseudotime plots...")
+  
+  plotPath <- paths$base$plots
+  
+  # Create the plots
+  trajectoryPlots <- createTrajectoryPlots(
+    cds = cds,
+    retainedLeaves = retainedLeaves,
+    branchStats = branch_stats,
+    plotPath = plotPath,
+    cellType = cellType,
+    saveIndividual = TRUE
+  )
+  
+  # Create summary plot
+  summaryPlot <- createSummaryPlot(
+    branchStats = branch_stats,
+    plotPath = plotPath,
+    cellType = cellType
+  )
+  
+  message("Plots saved to: ", plotPath)
+}
+
 message(retained, " valid trajectory branch(es).")
 message("Done!")
