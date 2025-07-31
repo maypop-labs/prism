@@ -33,7 +33,7 @@ cds <- load_monocle_objects(directory_path = ptPaths$monocle3SmoothedGeneSwitche
 # -- load Switch DEGs ---
 if (!file.exists(ptPaths$switchDegs)) stop("Switch DEG RDS file not found: ", ptPaths$switchDegs)
 message("Loading switch DEGs from: ", ptPaths$switchDegs)
-switchDEGS <- readRDS(ptPaths$switchDegs)
+switchDEGs <- readRDS(ptPaths$switchDegs)
 
 # --- Filter and Normalize Expression Matrix ---
 exprMat   <- assay(cds, "smoothed_expr")
@@ -67,7 +67,7 @@ scenicOptions <- initializeScenic(
 )
 
 # --- Filter to DEGs and TFs ---
-degGenes   <- rownames(switchDEGS)
+degGenes   <- rownames(switchDEGs)
 allTFs     <- getDbTfs(scenicOptions)
 unionGenes <- union(degGenes, allTFs)
 exprMat    <- exprMat[intersect(rownames(exprMat), unionGenes), ]

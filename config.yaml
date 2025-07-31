@@ -62,7 +62,8 @@ grnPositiveThreshold: 0.7
 grnNegativeThreshold: -0.7
 grnMergeStronglyConnectedComponents: True
 grnOnlyPositiveCorr: False
-grnRemoveTerminalNodes: False
+grnRemoveIsolatedNodes: True
+grnRemoveTerminalNodes: True
 fdrLevel: 0.05
 geneSwitchesBinarizeCutoff: 0.2
 geneSwitchesR2Cutoff: 0.03
