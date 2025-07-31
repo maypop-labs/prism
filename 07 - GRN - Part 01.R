@@ -7,55 +7,33 @@
 # This script has a long runtime. Grab a cup of coffee. C[_]
 # =============================================================================
 
-# --- Libraries ---
-library(foreach)
-library(doParallel)
-library(SCENIC)
-library(monocle3)
-library(GENIE3)
-library(Matrix)
-library(dplyr)
+# --- Initialization ---
+source("managers/attractorManager.R")
+source("managers/booleanManager.R")
+source("managers/pathManager.R")
+source("managers/pseudotimeManager.R")
+source("managers/setupManager.R")
+source("managers/uiManager.R")
 
-# --- Source functions ---
-source("functions.R")
+config     <- initializeScript()
+pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths      <- pathInfo$paths
+cellType   <- pathInfo$cellType
+trajectory <- pathInfo$trajectory
+ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+ensureProjectDirectories(paths)
+clearConsole()
 
-# --- Options ---
-options(warn = -1)
-config <- yaml::read_yaml("config.yaml")
-options(Seurat.object.assay.version = config$SeuratAssay)
-registerDoParallel(cores = config$cores)
+# --- Load smoothed pseudotime trajectory ---
+if (!dir.exists(ptPaths$monocle3SmoothedGeneSwitches)) stop("Monocle3 object directory not found: ", ptPaths$monocle3SmoothedGeneSwitches)
+message("Loading Monocle3 object from: ", ptPaths$monocle3SmoothedGeneSwitches)
+cds <- load_monocle_objects(directory_path = ptPaths$monocle3SmoothedGeneSwitches)
 
-# --- Parameters ---
-monocle3Path   <- paste0(config$rootPath, "results/monocle3/")
-plotPath       <- paste0(config$rootPath, "results/plots/")
-rdsPath        <- paste0(config$rootPath, "results/rds/")
-tsvPath        <- paste0(config$rootPath, "results/tsv/")
-txtPath        <- paste0(config$rootPath, "results/txt/")
-cellTypes      <- readRDS(paste0(rdsPath, "cell_types.rds"))
-cellType       <- showCellTypeMenu(cellTypes)
-trajNamesFile  <- readRDS(paste0(rdsPath, "retained_trajectories_", cellType, ".rds"))
-cellTrajectory <- showTrajectoryMenu(trajNamesFile)
-cdsPath        <- paste0(monocle3Path, "monocle3_", cellType, "_", cellTrajectory, "_smoothed_geneSwitches")
-degFile        <- paste0(rdsPath, cellType, "_", cellTrajectory, "_switch_degs.rds")
-scenicSaveFile <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_01.rds")
-
-dir.create(plotPath,      recursive = TRUE, showWarnings = FALSE)
-dir.create(rdsPath,       recursive = TRUE, showWarnings = FALSE)
-dir.create(tsvPath,       recursive = TRUE, showWarnings = FALSE)
-dir.create(txtPath,       recursive = TRUE, showWarnings = FALSE)
-dir.create(scenicOutPath, recursive = TRUE, showWarnings = FALSE)
-
-# --- Load Monocle3 & DEG Data ---
-if (!dir.exists(cdsPath)) stop("Monocle3 object directory not found: ", cdsPath)
-if (!file.exists(degFile)) stop("Switch DEG RDS file not found: ", degFile)
-
-message("Loading Monocle3 object from: ", cdsPath)
-cds <- load_monocle_objects(directory_path = cdsPath)
-message("Loading switch DEGs from: ", degFile)
-switchDEGS <- readRDS(degFile)
-
-cat("\014")
-cat("\n")
+# -- load Switch DEGs ---
+if (!file.exists(ptPaths$switchDegs)) stop("Switch DEG RDS file not found: ", ptPaths$switchDegs)
+message("Loading switch DEGs from: ", ptPaths$switchDegs)
+switchDEGS <- readRDS(ptPaths$switchDegs)
 
 # --- Filter and Normalize Expression Matrix ---
 exprMat   <- assay(cds, "smoothed_expr")
@@ -109,13 +87,10 @@ scenicOptions <- runSCENIC_1_coexNetwork2modules(scenicOptions)
 scenicOptions <- runSCENIC_2_createRegulons(scenicOptions, onlyPositiveCorr = config$grnOnlyPositiveCorr)
 scenicOptions <- runSCENIC_3_scoreCells(scenicOptions, exprMatLog)
 
-cat("\014")
-cat("\n")
-
 # --- Save Output ---
 if (config$saveResults) {
-  message("Saving SCENIC object to: ", scenicSaveFile)
-  saveRDS(scenicOptions, file = scenicSaveFile)
+  message("Saving SCENIC object to: ", ptPaths$grnPart01)
+  saveRDS(scenicOptions, file = ptPaths$grnPart01)
 }
 
 message("Done!")

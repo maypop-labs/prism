@@ -5,47 +5,28 @@
 # Store smoothed values as a new assay and save the updated Monocle3 object.
 # =============================================================================
 
-# --- Libraries ---
-library(foreach)
-library(doParallel)
-library(monocle3)
-library(Seurat)
-library(Matrix)
+# --- Initialization ---
+source("managers/attractorManager.R")
+source("managers/booleanManager.R")
+source("managers/pathManager.R")
+source("managers/pseudotimeManager.R")
+source("managers/setupManager.R")
+source("managers/uiManager.R")
 
-# --- Source functions ---
-source("functions.R")
-
-# --- Options ---
-options(warn = -1)
-config <- yaml::read_yaml("config.yaml")
-options(Seurat.object.assay.version = config$SeuratAssay)
-registerDoParallel(cores = config$cores)
-
-# --- Parameters ---
-monocle3Path   <- paste0(config$rootPath, "results/monocle3/")
-plotPath       <- paste0(config$rootPath, "results/plots/")
-rdsPath        <- paste0(config$rootPath, "results/rds/")
-tsvPath        <- paste0(config$rootPath, "results/tsv/")
-txtPath        <- paste0(config$rootPath, "results/txt/")
-cellTypes      <- readRDS(paste0(rdsPath, "cell_types.rds"))
-cellType       <- showCellTypeMenu(cellTypes)
-trajNamesFile  <- readRDS(paste0(rdsPath, "retained_trajectories_", cellType, ".rds"))
-cellTrajectory <- showTrajectoryMenu(trajNamesFile)
-cdsPath        <- paste0(monocle3Path, "monocle3_", cellType, "_", cellTrajectory)
-savePath       <- paste0(cdsPath, "_smoothed")
-
-dir.create(plotPath, recursive = TRUE, showWarnings = FALSE)
-dir.create(rdsPath,  recursive = TRUE, showWarnings = FALSE)
-dir.create(tsvPath,  recursive = TRUE, showWarnings = FALSE)
-dir.create(txtPath,  recursive = TRUE, showWarnings = FALSE)
+config     <- initializeScript()
+pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths      <- pathInfo$paths
+cellType   <- pathInfo$cellType
+trajectory <- pathInfo$trajectory
+ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+ensureProjectDirectories(paths)
+clearConsole()
 
 # --- Load Monocle3 Object ---
-if (!dir.exists(cdsPath)) stop("Monocle3 directory not found: ", cdsPath)
-message("Loading Monocle3 object from: ", cdsPath)
-cds <- load_monocle_objects(directory_path = cdsPath)
-
-cat("\014")
-cat("\n")
+if (!dir.exists(ptPaths$monocle3)) stop("Monocle3 directory not found: ", ptPaths$monocle3)
+message("Loading Monocle3 object from: ", ptPaths$monocle3)
+cds <- load_monocle_objects(directory_path = ptPaths$monocle3)
 
 # --- Ensure Pseudotime is Computed ---
 if (is.null(colData(cds)$Pseudotime)) {
@@ -67,13 +48,10 @@ for (i in seq_len(nCells)) {
 }
 assay(cds, "smoothed_expr") <- smoothMat
 
-cat("\014")
-cat("\n")
-
 # --- Save Results ---
 if (config$saveResults) {
-  message("Saving smoothed Monocle3 object to: ", savePath)
-  save_monocle_objects(cds = cds, directory_path = savePath, comment = cellType)
+  message("Saving smoothed Monocle3 object to: ", ptPaths$monocle3Smoothed)
+  save_monocle_objects(cds = cds, directory_path = ptPaths$monocle3Smoothed, comment = cellType)
 }
 
 message("Done!")

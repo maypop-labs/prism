@@ -98,11 +98,13 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
   
   list(
     # Monocle3 objects
-    monocle3Dir = paste0(basePaths$monocle3, "monocle3_", basePrefix),
+    monocle3 = paste0(basePaths$monocle3, "monocle3_", basePrefix),
     monocle3Smoothed = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_smoothed"),
     monocle3SmoothedGeneSwitches = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_smoothed_geneSwitches"),
     
     # Analysis intermediate files
+    degs = paste0(basePaths$rds, basePrefix, "_degs.rds"),
+    degsTsv = paste0(basePaths$rds, basePrefix, "_degs.tsv"),
     switchDegs = paste0(basePaths$rds, basePrefix, "_switch_degs.rds"),
     grnPart01 = paste0(basePaths$rds, basePrefix, "_GRN_Part_01.rds"),
     grnPart02 = paste0(basePaths$rds, basePrefix, "_GRN_Part_02.rds"),
@@ -208,7 +210,6 @@ initializeInteractivePaths <- function(needsCellType = FALSE, needsTrajectory = 
   basePaths <- buildBasePaths(config)
   
   result <- list(
-    config = config,
     paths = buildProjectPaths(config),
     cellType = NULL,
     trajectory = NULL
