@@ -122,6 +122,7 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     agingScore = paste0(basePaths$rds, basePrefix, "_aging_score.rds"),
     
     # GraphML exports
+    grnPlot = paste0(basePaths$plots, "figure5_", basePrefix, ".png"),
     grnGraphml = paste0(basePaths$graphml, basePrefix, "_GRN.graphml"),
     
     # Perturbation analysis (these would be generated in loops)
