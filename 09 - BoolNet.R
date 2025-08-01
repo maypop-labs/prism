@@ -1,5 +1,5 @@
 # =============================================================================
-# 10 - BoolNet
+# 09 - BoolNet
 #
 # Convert Boolean rules into a BoolNet object, compute attractors,
 # and save the BoolNet network, attractors, and sanitized gene name mapping.

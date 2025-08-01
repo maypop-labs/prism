@@ -1,5 +1,5 @@
 # =============================================================================
-# 12 - Attractor Analysis - Part 02
+# 11 - Attractor Analysis - Part 02
 #
 # Merge age scores and basin sizes with perturbation-based stability and entropy.
 # Compute a composite attractor aging score. Save results.
