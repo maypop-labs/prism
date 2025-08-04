@@ -43,8 +43,12 @@ edges <- readRDS(ptPaths$grnPart02Edges)
 if (!file.exists(ptPaths$grnPart02)) stop("Final GRN RDS file not found: ", ptPaths$grnPart02)
 message("Loading final GRN from: ", ptPaths$grnPart02)
 g <- readRDS(ptPaths$grnPart02)
-stop()
-# --- Prepare Binary Matrix and Pseudotime Order ---
+
+# Report
+message("Total switch DEGs loaded: ", nrow(switchDEGs))
+message("Total edges loaded: ", nrow(edges))
+
+# --- Prepare binary matrix and pseudotime order ---
 matBin    <- assay(cds, "binary")
 cellOrder <- order(colData(cds)$Pseudotime)
 nCells    <- length(cellOrder)
@@ -52,34 +56,77 @@ nCells    <- length(cellOrder)
 winSize <- max(5, floor(config$winSizePercent * nCells)) +floor(0.5 * max(5, floor(config$winSizePercent * nCells)))
 kStep <- winSize
 
-# --- Filter Edge Table ---
+# --- Filter edges ---
 if (config$grnMergeStronglyConnectedComponents) {
-  gDf <- as_data_frame(g, what = "edges")
+  gDf <- igraph::as_data_frame(g, what = "edges")
   colnames(gDf) <- c("TF", "Target", "corr", "regType")
   edges <- gDf %>% group_by(Target) %>% slice_max(order_by = abs(corr), n = config$boolMaxRegulators) %>% ungroup()
 } else {
 edges <- edges %>% group_by(Target) %>% slice_max(order_by = abs(corr), n = config$boolMaxRegulators) %>% ungroup()
 }
 
-# --- Filter to Genes Present in Expression Matrix ---
+# Report
+message("After edge filtering:")
+message("  Edges after slice_max: ", nrow(edges))
+message("  Unique targets in edges: ", length(unique(edges$Target)))
+message("  Unique TFs in edges: ", length(unique(edges$TF)))
+
+
+# --- Filter to genes present in expression matrix ---
 geneList <- rownames(matBin)
 adjTable <- edges %>% filter(TF %in% geneList & Target %in% geneList) %>% select(TF, Target)
+targetGenes <- unique(adjTable$Target)
 
-# --- Infer Boolean Rules ---
+# Report
+message("Genes in expression matrix: ", length(geneList))
+message("After gene filtering:")
+message("  Rows in adjTable: ", nrow(adjTable))
+message("  Unique targets in adjTable: ", length(unique(adjTable$Target)))
+message("  Unique TFs in adjTable: ", length(unique(adjTable$TF)))
+message("Final target genes for Boolean inference: ", length(targetGenes))
+message("  First 10 targets: ", paste(head(targetGenes, 10), collapse = ", "))
+
+stop()
+
+# --- Main loop for determining Boolean rules ---
 message("Inferring Boolean rules for ", length(unique(adjTable$Target)), " target genes")
 boolRules <- list()
-
 geneIndex <- 1
 for (gene in unique(adjTable$Target)) {
   message("[", geneIndex, "/", length(unique(adjTable$Target)), "] Gene: ", gene)
   geneIndex <- geneIndex + 1
+  
+  # Create regulators and immediately fix any list issues
+  regulators_raw <- adjTable$TF[adjTable$Target == gene]
+  
+  # Force conversion to character vector
+  if (is.list(regulators_raw) || class(regulators_raw)[1] == "list") {
+    message("Converting regulators from list to character")
+    regulators <- character(length(regulators_raw))
+    for (i in seq_along(regulators_raw)) {
+      if (is.list(regulators_raw[[i]])) {
+        regulators[i] <- as.character(regulators_raw[[i]][[1]])
+      } else {
+        regulators[i] <- as.character(regulators_raw[[i]])
+      }
+    }
+  } else {
+    regulators <- as.character(regulators_raw)
+  }
+  regulators <- unique(regulators)
 
-  regulators <- unique(adjTable$TF[adjTable$Target == gene])
   if (length(regulators) == 0) {
     message("No regulators. Skipping.")
     next
   }
-
+  
+  # Verify regulators exist in matrix
+  missing <- setdiff(regulators, rownames(matBin))
+  if (length(missing) > 0) {
+    message("Missing regulators: ", paste(missing, collapse = ", "), ". Skipping.")
+    next
+  }
+  
   ioDf <- makeInputOutputPairs(
     targetGene = gene,
     regulators = regulators,
@@ -87,19 +134,23 @@ for (gene in unique(adjTable$Target)) {
     cellOrder  = cellOrder,
     k          = kStep
   )
-
+  
   if (is.null(ioDf) || nrow(ioDf) < config$boolMinPairs) {
     message("Too few input-output pairs. Skipping.")
     next
   }
-
-  res <- findBestBooleanRules(ioDf)
+  
+  # --- Find the Boolean Rules ---
+  regulatorSigns <- setNames(edges$regType[edges$Target == gene], edges$TF[edges$Target == gene])
+  res <- findBestBooleanRulesWithPrior(ioDf, regulatorSigns = regulatorSigns)
   pattern <- combineBooleanFunctionsByOr(res$bestFns)
-
+  
   boolRules[[gene]] <- list(
     regulators  = regulators,
     bestScore   = res$score,
-    outPattern  = pattern
+    outPattern  = pattern,
+    methodUsed  = res$methodUsed,
+    biologicallyPlausible = res$biologicallyPlausible
   )
 }
 
@@ -107,6 +158,44 @@ for (gene in unique(adjTable$Target)) {
 if (config$saveResults) {
   message("Saving Boolean rules to: ", ptPaths$booleanRules)
   saveRDS(boolRules, file = ptPaths$booleanRules)
+  
+  generateBooleanRuleReport(boolRules, edges, paths)
+  ruleStats <- extractRuleStatistics(boolRules)
+  
+  jsonOutput <- list(
+    metadata = list(
+      timestamp = Sys.time(),
+      parameters = config,
+      summary_stats = ruleStats
+    ),
+    rules = boolRules,
+    network_structure = edges
+  )
+  write_json(jsonOutput, paste0(paths$base$json, cellType, "_", trajectory, "boolean_rules_complete.json"), pretty = TRUE)
+  
+  # Structured TSV for tabular analysis
+  rulesFlat <- data.frame(
+    gene = rep(names(boolRules), sapply(boolRules, function(x) length(x$regulators))),
+    regulator = unlist(sapply(boolRules, function(x) x$regulators)),
+    rule_quality = rep(sapply(boolRules, function(x) x$bestScore), 
+                       sapply(boolRules, function(x) length(x$regulators))),
+    method_used = rep(sapply(boolRules, function(x) x$methodUsed), 
+                      sapply(boolRules, function(x) length(x$regulators)))
+  )
+  write.table(rulesFlat, paste0(paths$base$tsv, cellType, "_", trajectory, "boolean_rules.tsv"), 
+              sep = "\t", row.names = FALSE, quote = FALSE)
+  
+  # NetworkX-compatible edge list
+  networkxFormat <- edges %>%
+    left_join(
+      data.frame(
+        gene = names(boolRules),
+        rule_quality = sapply(boolRules, function(x) x$bestScore)
+      ),
+      by = c("Target" = "gene")
+    )
+  write.table(networkxFormat, paste0(paths$base$tsv, cellType, "_", trajectory, "network_for_ai.tsv"), 
+              sep = "\t", row.names = FALSE, quote = FALSE)
   
 }
 

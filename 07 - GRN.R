@@ -145,7 +145,7 @@ if (config$grnRemoveTerminalNodes) {
 if (config$grnMergeStronglyConnectedComponents) {
   comp <- components(g, mode = "strong")
   gMerged <- contract.vertices(g, comp$membership, vertex.attr.comb = "concat")
-  g <- igraph::simplify(gMerged, remove.loops = TRUE, edge.attr.comb = "concat")
+  g <- igraph::simplify(gMerged, remove.loops = TRUE, edge.attr.comb = "first")
   message("Merged ", max(comp$membership), " strongly connected components")
 }
 

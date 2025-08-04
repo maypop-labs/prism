@@ -85,7 +85,7 @@ loadRequiredLibraries <- function(suppressMessages = TRUE) {
     
     # Visualization and utilities
     "ggplot2", "ggraph", "data.table", "mgcv", "gmp", "patchwork", "progress",
-    "progressr",
+    "progressr", "gridExtra", "ComplexHeatmap", "jsonlite",
     
     # Extended analysis
     "tidyverse", "lme4", "lmerTest"

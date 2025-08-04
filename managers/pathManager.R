@@ -18,6 +18,7 @@ buildBasePaths <- function(config) {
     root = rootPath,
     cellranger = paste0(rootPath, "cellranger_counts/"),
     results = paste0(rootPath, "results/"),
+    json = paste0(rootPath, "results/json/"),
     plots = paste0(rootPath, "results/plots/"),
     rds = paste0(rootPath, "results/rds/"),
     tsv = paste0(rootPath, "results/tsv/"),
@@ -104,7 +105,7 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     
     # Analysis intermediate files
     degs = paste0(basePaths$rds, basePrefix, "_degs.rds"),
-    degsTsv = paste0(basePaths$rds, basePrefix, "_degs.tsv"),
+    degsTsv = paste0(basePaths$tsv, basePrefix, "_degs.tsv"),
     switchDegs = paste0(basePaths$rds, basePrefix, "_switch_degs.rds"),
     grnPart01 = paste0(basePaths$rds, basePrefix, "_GRN_Part_01.rds"),
     grnPart02 = paste0(basePaths$rds, basePrefix, "_GRN_Part_02.rds"),

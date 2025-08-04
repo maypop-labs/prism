@@ -66,7 +66,7 @@ grnRemoveIsolatedNodes: True
 grnRemoveTerminalNodes: True
 fdrLevel: 0.05
 geneSwitchesBinarizeCutoff: 0.2
-geneSwitchesR2Cutoff: 0.03
+geneSwitchesR2Cutoff: 0.1
 maxSwitchDEGs: 100000
 minCellTypeNumber: 1000
 minDEGs: 1000
