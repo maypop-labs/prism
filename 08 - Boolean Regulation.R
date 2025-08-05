@@ -10,6 +10,7 @@
 # --- Initialization ---
 source("managers/attractorManager.R")
 source("managers/booleanManager.R")
+source("managers/booleanReportManager.R")
 source("managers/pathManager.R")
 source("managers/pseudotimeManager.R")
 source("managers/setupManager.R")
@@ -38,7 +39,7 @@ edges <- readRDS(ptPaths$grnPart02Edges)
 # --- Synthesize Boolean Rules ---
 message("Synthesizing Boolean rules from SCENIC edges...")
 matBin    <- assay(cds, "binary")
-boolRules <- synthesizeBooleanRulesBatchEnhanced(
+boolRules <- synthesizeBooleanRulesBatch(
   edges = edges,
   matBin = matBin,
   maxRegulators = config$boolMaxRegulators %||% 5
