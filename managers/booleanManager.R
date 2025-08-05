@@ -9,6 +9,7 @@
 # =============================================================================
 
 #' Synthesize Boolean rule for a target gene based on signed SCENIC edges
+#' Called by: synthesizeBooleanRulesBatch
 #'
 #' @param targetGene Character name of the target gene
 #' @param regulators Character vector of regulator gene names
@@ -39,6 +40,7 @@ synthesizeBooleanRule <- function(targetGene, regulators, regulatorSigns) {
 # =============================================================================
 
 #' Synthesize Boolean rules for all target genes using SCENIC edges
+#' Called by: None
 #'
 #' @param edges Data frame with columns TF, Target, regType
 #' @param matBin Binary expression matrix
@@ -85,6 +87,7 @@ synthesizeBooleanRulesBatch <- function(edges, matBin, maxRegulators = 5) {
 # =============================================================================
 
 #' Generate multiple Boolean rule templates for a target gene
+#' Called by: synthesizeBestBooleanRule
 #'
 #' @param targetGene Character name of the target gene
 #' @param regulators Character vector of regulator gene names
@@ -222,6 +225,7 @@ generateBooleanTemplates <- function(targetGene, regulators, regulatorSigns) {
 }
 
 #' Test multiple templates and select the best one
+#' Called by: synthesizeBooleanRulesBatchEnhanced
 #'
 #' @param targetGene Character name of the target gene
 #' @param regulators Character vector of regulator gene names
@@ -278,6 +282,7 @@ synthesizeBestBooleanRule <- function(targetGene, regulators, regulatorSigns, ma
 }
 
 #' Enhanced batch synthesis with template variety
+#' Called by: Main script(s)!
 #'
 #' @param edges Data frame with columns TF, Target, regType
 #' @param matBin Binary expression matrix
@@ -367,6 +372,7 @@ synthesizeBooleanRulesBatchEnhanced <- function(edges, matBin, maxRegulators = 5
 }
 
 #' Helper function to score Boolean rules (same as before but with better error handling)
+#' Called by: synthesizeBooleanRulesBatch, synthesizeBestBooleanRule
 #'
 #' @param ruleStr BoolNet-style rule string
 #' @param matBin Binary expression matrix
@@ -424,6 +430,7 @@ scoreBooleanRule <- function(ruleStr, matBin) {
 # =============================================================================
 
 #' Write BoolNet-compatible rules to file
+#' Called by: None
 #'
 #' @param ruleList List of synthesized rules
 #' @param outputPath Path to write the network file
@@ -440,6 +447,7 @@ writeBoolNetFile <- function(ruleList, outputPath) {
 #' Generate comprehensive Boolean rule analysis report
 #'
 #' Creates visualizations using config parameters and proper white backgrounds
+#' Called by: Main script(s)!
 #'
 #' @param boolRules List of Boolean rules from main script
 #' @param edges Edge list data frame with regulatory relationships
@@ -489,7 +497,7 @@ generateBooleanRuleReport <- function(boolRules, edges, paths, cellType, traject
   
   # 4. Network Complexity Heatmap (FIXED VERSION)
   if (length(boolRules) > 0) {
-    p4 <- plotNetworkComplexityHeatmapFixed(boolRules, edges)
+    p4 <- plotNetworkComplexityHeatmap(boolRules, edges)
     png(paste0(paths$base$plots, cellType, "_", trajectory, "_network_complexity_heatmap.png"), 
         width = config$figWidth * config$figDPI, height = config$figHeight * config$figDPI, 
         res = config$figDPI, bg = "white")
@@ -509,6 +517,7 @@ generateBooleanRuleReport <- function(boolRules, edges, paths, cellType, traject
 }
 
 #' Plot distribution of rule quality scores
+#' Called by: generateBooleanRuleReport
 #' @param ruleStats Data frame with rule statistics
 #' @param standardTheme ggplot theme to apply
 #' @return ggplot object
@@ -531,6 +540,7 @@ plotRuleQualityDistribution <- function(ruleStats, standardTheme) {
 }
 
 #' Plot method usage summary
+#' Called by: generateBooleanRuleReport
 #' @param ruleStats Data frame with rule statistics
 #' @param standardTheme ggplot theme to apply
 #' @return ggplot object
@@ -564,6 +574,7 @@ plotMethodUsageSummary <- function(ruleStats, standardTheme) {
 }
 
 #' Plot biological plausibility analysis
+#' Called by: generateBooleanRuleReport
 #' @param ruleStats Data frame with rule statistics
 #' @param standardTheme ggplot theme to apply
 #' @return ggplot object
@@ -599,10 +610,11 @@ plotBiologicalPlausibility <- function(ruleStats, standardTheme) {
 }
 
 #' Create network complexity heatmap
+#' Called by: generateBooleanRuleReport
 #' @param boolRules List of Boolean rules
 #' @param edges Edge list data frame
 #' @return ComplexHeatmap object
-plotNetworkComplexityHeatmapFixed <- function(boolRules, edges) {
+plotNetworkComplexityHeatmap <- function(boolRules, edges) {
   
   # FIXED: Only use genes that actually have Boolean rules and their regulators
   targetGenes <- names(boolRules)
@@ -676,6 +688,7 @@ plotNetworkComplexityHeatmapFixed <- function(boolRules, edges) {
 }
 
 #' Plot rule logic network
+#' Called by: generateBooleanRuleReport
 #' @param boolRules List of Boolean rules
 #' @param edges Edge list data frame
 #' @param standardTheme ggplot theme to apply
@@ -774,7 +787,7 @@ plotRuleLogicNetwork <- function(boolRules, edges, standardTheme) {
 }
 
 #' Extract summary statistics from Boolean rule list
-#'
+#' Called by: generateBooleanRuleReport
 #' @param boolRules List of Boolean rule objects
 #' @return Data frame with per-gene statistics
 extractRuleStatistics <- function(boolRules) {
@@ -788,6 +801,7 @@ extractRuleStatistics <- function(boolRules) {
 }
 
 #' Generate text summary report
+#' Called by: generateBooleanRuleReport
 #' @param ruleStats Data frame with rule statistics
 #' @param boolRules List of Boolean rules
 #' @param filename Output file path
