@@ -380,30 +380,41 @@ makeBoolNetRule <- function(geneName, regulators, outPattern) {
   return(paste0(geneName, ", ", ruleStr))
 }
 
-#' Sanitize gene names inside a Boolean rule string
+#' Sanitize gene names inside a Boolean rule string (FIXED VERSION)
 #'
 #' Replaces gene names in a BoolNet-compatible rule string with sanitized
-#' versions based on a geneMap data frame. Works on both the target and
-#' regulators. Preserves Boolean logic operators.
+#' versions based on a geneMap data frame. Preserves Boolean logic operators
+#' and proper spacing.
 #'
 #' @param ruleStr A character string in BoolNet format (e.g., "TP53, !MDM2 & ATM")
 #' @param geneMap A data frame with columns `originalName` and `sanitizedName`
 #'
 #' @return A sanitized BoolNet rule string
-#' @examples
-#' sanitizeRule("GATA-1, FOXP3 & !RUNX1", geneMap)
 sanitizeRule <- function(ruleStr, geneMap) {
   parts <- strsplit(ruleStr, ",\\s*")[[1]]
   target <- parts[1]
   logic  <- parts[2]
   
-  tokens <- strsplit(logic, "(\\s+|(?<=\\W)|(?=\\W))", perl = TRUE)[[1]]
-  tokens <- sapply(tokens, function(tok) lookupSanitized(tok, geneMap))
+  # Create a simple lookup for gene name replacement
+  # Sort by name length (longest first) to avoid partial matches
+  geneNames <- geneMap$originalName[order(-nchar(geneMap$originalName))]
   
-  cleanLogic <- paste(tokens, collapse = "")
-  cleanTarget <- lookupSanitized(target, geneMap)
+  # Replace gene names in logic, preserving spaces and operators
+  for (i in seq_along(geneNames)) {
+    origName <- geneNames[i]
+    safeName <- geneMap$sanitizedName[geneMap$originalName == origName]
+    
+    # Use word boundary regex to avoid partial matches
+    pattern <- paste0("\\b", gsub("([.|()\\^{}+$*?]|\\[|\\])", "\\\\\\1", origName), "\\b")
+    logic <- gsub(pattern, safeName, logic)
+    
+    # Also check target
+    if (target == origName) {
+      target <- safeName
+    }
+  }
   
-  return(paste0(cleanTarget, ", ", cleanLogic))
+  return(paste0(target, ", ", logic))
 }
 
 #' Lookup sanitized gene name from a mapping data frame
