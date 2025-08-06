@@ -262,7 +262,6 @@ synthesizeBooleanRulesBatch <- function(edges, matBin, maxRegulators = 5) {
         nRegulators = length(regulators),
         templateUsed = ruleResult$bestTemplateName,
         templateDescription = ruleResult$bestDescription,
-        methodUsed = "template_variety",
         biologicallyPlausible = TRUE
       )
       
@@ -335,4 +334,95 @@ scoreBooleanRule <- function(ruleStr, matBin) {
   score <- mean(predictions == actual, na.rm = TRUE)
   
   return(score)
+}
+
+#' Generate BoolNet-compatible rule string from Boolean function
+#'
+#' Converts a Boolean function output pattern into a human-readable rule string
+#' suitable for BoolNet network specification.
+#'
+#' @param geneName Name of the target gene
+#' @param regulators Character vector of regulator gene names
+#' @param outPattern Integer vector representing Boolean function output
+#' @return Character string in BoolNet rule format
+#' @export
+makeBoolNetRule <- function(geneName, regulators, outPattern) {
+  
+  if (length(regulators) == 0) {
+    ruleStr <- ifelse(outPattern[1] == 1, geneName, paste0("! ", geneName))
+    return(paste0(geneName, ", ", ruleStr))
+  }
+  
+  R <- length(regulators)
+  expectedLength <- 2^R
+  
+  if (length(outPattern) != expectedLength) {
+    stop("Output pattern length (", length(outPattern),
+         ") doesn't match expected length (", expectedLength, ") for ", R, " regulators")
+  }
+  
+  clauseList <- character()
+  
+  for (i in 0:(expectedLength - 1)) {
+    if (outPattern[i + 1] == 1) {
+      bits <- as.integer(intToBits(i))[1:R]
+      andTerms <- ifelse(bits == 1, regulators, paste0("! ", regulators))
+      clause <- paste0("(", paste(andTerms, collapse = " & "), ")")
+      clauseList <- c(clauseList, clause)
+    }
+  }
+  
+  if (length(clauseList) == 0) {
+    return(paste0(geneName, ", ! ", geneName))
+  }
+  
+  ruleStr <- paste(clauseList, collapse = " | ")
+  return(paste0(geneName, ", ", ruleStr))
+}
+
+#' Sanitize gene names inside a Boolean rule string
+#'
+#' Replaces gene names in a BoolNet-compatible rule string with sanitized
+#' versions based on a geneMap data frame. Works on both the target and
+#' regulators. Preserves Boolean logic operators.
+#'
+#' @param ruleStr A character string in BoolNet format (e.g., "TP53, !MDM2 & ATM")
+#' @param geneMap A data frame with columns `originalName` and `sanitizedName`
+#'
+#' @return A sanitized BoolNet rule string
+#' @examples
+#' sanitizeRule("GATA-1, FOXP3 & !RUNX1", geneMap)
+sanitizeRule <- function(ruleStr, geneMap) {
+  parts <- strsplit(ruleStr, ",\\s*")[[1]]
+  target <- parts[1]
+  logic  <- parts[2]
+  
+  tokens <- strsplit(logic, "(\\s+|(?<=\\W)|(?=\\W))", perl = TRUE)[[1]]
+  tokens <- sapply(tokens, function(tok) lookupSanitized(tok, geneMap))
+  
+  cleanLogic <- paste(tokens, collapse = "")
+  cleanTarget <- lookupSanitized(target, geneMap)
+  
+  return(paste0(cleanTarget, ", ", cleanLogic))
+}
+
+#' Lookup sanitized gene name from a mapping data frame
+#'
+#' Given an original gene name, returns its sanitized version using a geneMap
+#' data frame with columns `originalName` and `sanitizedName`. If the name is
+#' not found in the map, returns the input as-is.
+#'
+#' @param name A character string (original gene name to sanitize)
+#' @param geneMap A data frame with columns `originalName` and `sanitizedName`
+#'
+#' @return Sanitized gene name (character)
+#' @examples
+#' lookupSanitized("GATA-1", geneMap)
+lookupSanitized <- function(name, geneMap) {
+  matchIdx <- match(name, geneMap$originalName)
+  if (!is.na(matchIdx)) {
+    geneMap$sanitizedName[matchIdx]
+  } else {
+    name
+  }
 }

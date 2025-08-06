@@ -41,8 +41,8 @@ sanitizeGeneName <- function(name) {
 #' @export
 generateSanitizedGeneMapping <- function(geneNames) {
   data.frame(
-    OriginalName = geneNames,
-    SanitizedName = sapply(geneNames, sanitizeGeneName, USE.NAMES = FALSE),
+    originalName = geneNames,
+    sanitizedName = sapply(geneNames, sanitizeGeneName, USE.NAMES = FALSE),
     stringsAsFactors = FALSE
   )
 }

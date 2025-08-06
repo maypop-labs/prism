@@ -49,32 +49,12 @@ generateBooleanRuleReport <- function(boolRules, edges, paths, cellType, traject
   ggsave(paste0(paths$base$plots, cellType, "_", trajectory, "_rule_quality_distribution.png"), 
          p1, width = config$figWidth, height = config$figHeight, dpi = config$figDPI, bg = "white")
   
-  # 2. Method Usage Summary
-  p2 <- plotMethodUsageSummary(ruleStats, standardTheme)
-  ggsave(paste0(paths$base$plots, cellType, "_", trajectory, "_method_usage_summary.png"), 
-         p2, width = config$figWidth, height = config$figHeight, dpi = config$figDPI, bg = "white")
-  
-  # 3. Biological Plausibility Analysis
-  p3 <- plotBiologicalPlausibility(ruleStats, standardTheme)
-  ggsave(paste0(paths$base$plots, cellType, "_", trajectory, "_biological_plausibility.png"), 
-         p3, width = config$figWidth, height = config$figHeight, dpi = config$figDPI, bg = "white")
-  
-  # 4. Network Complexity Heatmap (FIXED VERSION)
-  if (length(boolRules) > 0) {
-    p4 <- plotNetworkComplexityHeatmap(boolRules, edges)
-    png(paste0(paths$base$plots, cellType, "_", trajectory, "_network_complexity_heatmap.png"), 
-        width = config$figWidth * config$figDPI, height = config$figHeight * config$figDPI, 
-        res = config$figDPI, bg = "white")
-    draw(p4)
-    dev.off()
-  }
-  
-  # 5. Rule Logic Summary Network
-  p5 <- plotRuleLogicNetwork(boolRules, edges, standardTheme)
+  # 2. Rule Logic Summary Network
+  p2 <- plotRuleLogicNetwork(boolRules, edges, standardTheme)
   ggsave(paste0(paths$base$plots, cellType, "_", trajectory, "_rule_logic_network.png"), 
-         p5, width = config$figWidth * 1.5, height = config$figHeight * 1.2, dpi = config$figDPI, bg = "white")
+         p2, width = config$figWidth * 1.5, height = config$figHeight * 1.2, dpi = config$figDPI, bg = "white")
   
-  # 6. Generate text report
+  # 3. Generate text report
   generateTextReport(ruleStats, boolRules, paste0(paths$base$txt, cellType, "_", trajectory, "_boolean_rules_report.txt"))
   
   message("Boolean rule analysis complete. Results saved to: ", paths$base$plots)
@@ -101,154 +81,6 @@ plotRuleQualityDistribution <- function(ruleStats, standardTheme) {
     standardTheme +
     annotate("text", x = 0.85, y = Inf, label = "Good Rules", vjust = 1.5, color = "darkgreen", size = 3) +
     annotate("text", x = 0.4, y = Inf, label = "Poor Rules", vjust = 1.5, color = "red", size = 3)
-}
-
-#' Plot method usage summary
-#' Called by: generateBooleanRuleReport
-#' @param ruleStats Data frame with rule statistics
-#' @param standardTheme ggplot theme to apply
-#' @return ggplot object
-plotMethodUsageSummary <- function(ruleStats, standardTheme) {
-  
-  methodCounts <- ruleStats %>%
-    dplyr::group_by(methodUsed) %>%
-    dplyr::summarise(count = n(), .groups = "drop") %>%
-    dplyr::mutate(
-      percentage = round(100 * count / sum(count), 1),
-      label = paste0(percentage, "%")
-    )
-  
-  ggplot(methodCounts, aes(x = "", y = count, fill = methodUsed)) +
-    geom_col(width = 1) +
-    coord_polar(theta = "y") +
-    geom_text(aes(label = label), position = position_stack(vjust = 0.5), size = 4) +
-    labs(
-      title = "Boolean Rule Inference Method Usage",
-      subtitle = "Which methods were used to find the best rules?",
-      fill = "Method"
-    ) +
-    standardTheme +
-    theme(
-      axis.text = element_blank(),
-      axis.ticks = element_blank(),
-      panel.grid = element_blank(),
-      legend.position = "bottom"
-    ) +
-    scale_fill_brewer(type = "qual", palette = "Set2")
-}
-
-#' Plot biological plausibility analysis
-#' Called by: generateBooleanRuleReport
-#' @param ruleStats Data frame with rule statistics
-#' @param standardTheme ggplot theme to apply
-#' @return ggplot object
-plotBiologicalPlausibility <- function(ruleStats, standardTheme) {
-  
-  plausibilityData <- ruleStats %>%
-    filter(!is.na(biologicallyPlausible)) %>%
-    mutate(
-      plausibilityLabel = ifelse(biologicallyPlausible, "Biologically Plausible", "Data-Driven Only")
-    )
-  
-  if (nrow(plausibilityData) == 0) {
-    return(ggplot() + 
-             annotate("text", x = 0.5, y = 0.5, label = "No biological plausibility data available", size = 5) +
-             labs(title = "Biological Plausibility Analysis", subtitle = "No data available") +
-             standardTheme)
-  }
-  
-  ggplot(plausibilityData, aes(x = plausibilityLabel, y = bestScore, fill = plausibilityLabel)) +
-    geom_boxplot(alpha = 0.7, outlier.alpha = 0.6) +
-    geom_jitter(width = 0.2, alpha = 0.5, size = 2) +
-    labs(
-      title = "Rule Quality by Biological Plausibility",
-      subtitle = "Do biologically plausible rules perform better?",
-      x = "Rule Type",
-      y = "Quality Score",
-      fill = "Rule Type"
-    ) +
-    standardTheme +
-    theme(legend.position = "none") +
-    scale_fill_manual(values = c("steelblue", "orange")) +
-    stat_summary(fun = mean, geom = "point", shape = 23, size = 4, color = "red", fill = "white")
-}
-
-#' Create network complexity heatmap
-#' Called by: generateBooleanRuleReport
-#' @param boolRules List of Boolean rules
-#' @param edges Edge list data frame
-#' @return ComplexHeatmap object
-plotNetworkComplexityHeatmap <- function(boolRules, edges) {
-  
-  # FIXED: Only use genes that actually have Boolean rules and their regulators
-  targetGenes <- names(boolRules)
-  regulatorGenes <- unique(unlist(lapply(boolRules, function(x) x$regulators)))
-  relevantGenes <- unique(c(targetGenes, regulatorGenes))
-  
-  # Create appropriately sized matrix
-  regulatorMatrix <- matrix(0, nrow = length(regulatorGenes), ncol = length(targetGenes))
-  rownames(regulatorMatrix) <- regulatorGenes
-  colnames(regulatorMatrix) <- targetGenes
-  
-  # Fill in regulatory relationships with quality scores
-  for (gene in targetGenes) {
-    if (gene %in% names(boolRules)) {
-      regulators <- boolRules[[gene]]$regulators
-      
-      # Ensure ruleQuality is a single numeric value
-      ruleQuality <- as.numeric(boolRules[[gene]]$bestScore %||% boolRules[[gene]]$score %||% 0)[1]
-      if (is.na(ruleQuality)) ruleQuality <- 0
-      
-      for (reg in regulators) {
-        if (reg %in% rownames(regulatorMatrix)) {
-          regulatorMatrix[reg, gene] <- ruleQuality
-        }
-      }
-    }
-  }
-  
-  # Remove empty rows and columns
-  nonEmptyRows <- rowSums(regulatorMatrix) > 0
-  nonEmptyCols <- colSums(regulatorMatrix) > 0
-  
-  if (sum(nonEmptyRows) > 0 && sum(nonEmptyCols) > 0) {
-    regulatorMatrix <- regulatorMatrix[nonEmptyRows, nonEmptyCols, drop = FALSE]
-    
-    # Create properly sized heatmap
-    ComplexHeatmap::Heatmap(
-      regulatorMatrix,
-      name = "Rule Quality",
-      col = circlize::colorRamp2(c(0, 0.5, 1), c("white", "yellow", "red")),
-      cluster_rows = ifelse(nrow(regulatorMatrix) > 1, TRUE, FALSE),
-      cluster_columns = ifelse(ncol(regulatorMatrix) > 1, TRUE, FALSE),
-      show_row_names = TRUE,
-      show_column_names = TRUE,
-      row_names_gp = grid::gpar(fontsize = 10),
-      column_names_gp = grid::gpar(fontsize = 10),
-      column_title = "Target Genes",
-      row_title = "Regulator Genes",
-      heatmap_legend_param = list(title = "Boolean Rule\nQuality Score"),
-      width = unit(min(8, ncol(regulatorMatrix) * 0.8), "cm"),
-      height = unit(min(8, nrow(regulatorMatrix) * 0.8), "cm")
-    )
-  } else {
-    # Create empty heatmap with message
-    emptyMatrix <- matrix(0, nrow = 1, ncol = 1)
-    rownames(emptyMatrix) <- "No Data"
-    colnames(emptyMatrix) <- "No Data"
-    
-    ComplexHeatmap::Heatmap(
-      emptyMatrix,
-      name = "Rule Quality",
-      col = "white",
-      cluster_rows = FALSE,
-      cluster_columns = FALSE,
-      show_row_names = TRUE,
-      show_column_names = TRUE,
-      column_title = "No regulatory relationships to display",
-      heatmap_legend_param = list(title = "Boolean Rule\nQuality Score")
-    )
-  }
 }
 
 #' Plot rule logic network
