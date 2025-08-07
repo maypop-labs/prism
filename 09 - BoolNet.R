@@ -31,16 +31,19 @@ if (!file.exists(ptPaths$booleanRules)) stop("Boolean rules file not found: ", p
 message("Loading Boolean rules from: ", ptPaths$booleanRules)
 boolRules <- readRDS(ptPaths$booleanRules)
 
+# --- Generate Sanitized Gene Mapping ---
+geneMap <- generateSanitizedGeneMapping(rownames(cds))
+
 # --- Filter Rules by Score ---
+message("Starting with ", length(boolRules), " Boolean rules")
 minScore <- config$boolNetMinScore %||% 0.65
 message("Filtering rules with score ≥ ", minScore)
 boolRules <- Filter(function(rule) {
   !is.null(rule$score) && rule$score >= minScore
 }, boolRules)
-message("Retained ", length(boolRules), " high-confidence rules")
+message("Retained ", length(boolRules), " high-confidence Boolean rules")
 
-# --- Generate Sanitized Gene Mapping ---
-geneMap <- generateSanitizedGeneMapping(rownames(cds))
+
 
 # --- Check Connectivity of Filtered Rules ---
 edgesDf <- do.call(rbind, lapply(names(boolRules), function(target) {
@@ -59,7 +62,16 @@ if (comp$no > 1) {
 # --- Build BoolNet Rule Table ---
 message("Building BoolNet rule table")
 ruleLines <- c("targets,factors")
-for (gene in names(boolRules)) {
+
+# Progress bar for rule table building
+geneNames <- names(boolRules)
+total <- length(geneNames)
+pb <- txtProgressBar(min = 0, max = total, style = 3)
+
+for (i in seq_along(geneNames)) {
+  gene <- geneNames[i]
+  setTxtProgressBar(pb, i)
+  
   ruleStr <- sanitizeRule(boolRules[[gene]]$rule, geneMap)
   if (grepl(",,", ruleStr) || grepl("\\bNA\\b", ruleStr)) {
     warning("Skipping malformed rule for gene: ", gene)
@@ -67,73 +79,26 @@ for (gene in names(boolRules)) {
   }
   ruleLines <- c(ruleLines, ruleStr)
 }
+
+close(pb)
 message("BoolNet rule table complete: ", length(ruleLines) - 1, " rules")
-
-# ---
-
-# --- DEBUG: Inspect rule table ---
-message("=== DEBUGGING RULE TABLE ===")
-message("First 10 rule lines:")
-for (i in 1:min(10, length(ruleLines))) {
-  message(i, ": ", ruleLines[i])
-}
-
-# Check for common issues
-# Look for actual problems, not just gene names containing "NA"
-problematicRules <- ruleLines[grepl("\\bNA\\b|,,|^\\s*$|^targets,factors$", ruleLines)]
-problematicRules <- problematicRules[!grepl("^targets,factors$", problematicRules)]  # Exclude header
-if (length(problematicRules) > 0) {
-  message("Found problematic rules:")
-  for (rule in problematicRules) {
-    message("  PROBLEM: ", rule)
-  }
-}
-
-# Check BoolNet object
-message("BoolNet genes: ", length(boolnet$genes))
-message("BoolNet genes: ", paste(head(boolnet$genes, 10), collapse = ", "))
-message("==============================")
-
-# ---
 
 # --- Convert to BoolNet Object ---
 tempFile <- tempfile(fileext = ".txt")
 writeLines(ruleLines, con = tempFile)
 
-# DEBUG: Show the temp file content
-message("=== TEMP FILE CONTENT ===")
-message("File location: ", tempFile)
-message("First 10 lines of temp file:")
-tempContent <- readLines(tempFile)
-for (i in 1:min(10, length(tempContent))) {
-  message(i, ": ", tempContent[i])
-}
-message("==========================")
-
-# Try to load with error handling
 tryCatch({
   boolnet <- loadNetwork(tempFile)
   message("BoolNet object created successfully")
   boolnet$type <- "synchronous"
 }, error = function(e) {
   message("FAILED to create BoolNet object: ", e$message)
-  message("Temp file still available at: ", tempFile)
-  stop("BoolNet creation failed")
+  stop("BoolNet creation failed: ", e$message)
 })
 
 # --- Compute Attractors ---
-message("Computing attractors with BoolNet")
-tryCatch({
-  attractors <- getAttractors(
-    boolnet,
-    method = "random",
-    startStates = config$boolNetStartStates,
-    returnTable = TRUE,
-    type = "synchronous"
-  )
-}, error = function(e) {
-  stop("Attractor computation failed: ", e$message)
-})
+
+
 
 # --- Save Outputs ---
 if (config$saveResults) {

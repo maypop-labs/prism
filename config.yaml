@@ -54,7 +54,6 @@ attInitialThreshold: 0.10
 attFinalThreshold: 0.5
 boolMaxRegulators: 3
 boolMinPairs: 5
-boolNetStartStates: 100000
 boolSamplingMethod: "smart"  # vs "exhaustive"
 boolTimeLimit: 20     # Minutes per gene
 cores: 1

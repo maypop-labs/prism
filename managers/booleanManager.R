@@ -380,7 +380,7 @@ makeBoolNetRule <- function(geneName, regulators, outPattern) {
   return(paste0(geneName, ", ", ruleStr))
 }
 
-#' Sanitize gene names inside a Boolean rule string (FIXED VERSION)
+#' Sanitize gene names inside a Boolean rule string
 #'
 #' Replaces gene names in a BoolNet-compatible rule string with sanitized
 #' versions based on a geneMap data frame. Preserves Boolean logic operators
