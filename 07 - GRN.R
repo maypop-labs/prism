@@ -115,30 +115,31 @@ scenicEdges <- scenicEdges %>%
            corr < -config$grnNegativeThreshold)
 scenicEdges$regType <- ifelse(scenicEdges$corr >= 0, "Activation", "Inhibition")
 
-# --- Add Self-Activating Loops to Orphan Targets ---
-noActivatorTargets <- scenicEdges %>%
-  group_by(Target) %>%
-  summarize(hasActivator = any(regType == "Activation")) %>%
-  filter(!hasActivator) %>% pull(Target)
-if (length(noActivatorTargets) > 0) {
-  selfEdges <- data.frame(
-    TF      = noActivatorTargets,
-    Target  = noActivatorTargets,
-    regType = "Activation",
-    corr    = 1
-  )
-  scenicEdges <- bind_rows(scenicEdges, selfEdges)
-  message("Added self-activation loops for ", length(noActivatorTargets), " orphan targets")
+# # --- Add Self-Activating Loops to Orphan Targets ---
+if (config$grnAddSelfActivation) {
+ noActivatorTargets <- scenicEdges %>%
+   group_by(Target) %>%
+   summarize(hasActivator = any(regType == "Activation")) %>%
+   filter(!hasActivator) %>% pull(Target)
+ if (length(noActivatorTargets) > 0) {
+   selfEdges <- data.frame(
+     TF      = noActivatorTargets,
+     Target  = noActivatorTargets,
+     regType = "Activation",
+     corr    = 1
+   )
+   scenicEdges <- bind_rows(scenicEdges, selfEdges)
+   message("Added self-activation loops for ", length(noActivatorTargets), " orphan targets")
+ }
 }
-
 # --- Build Graph and Prune ---
 g <- graph_from_data_frame(scenicEdges, directed = TRUE)
 message("Initial network: ", vcount(g), " nodes, ", ecount(g), " edges")
 
 if (config$grnRemoveTerminalNodes) {
-  terminalNodes <- names(which(degree(g, mode = "out") == 0))
-  g <- delete_vertices(g, terminalNodes)
-  message("Removed ", length(terminalNodes), " terminal nodes")
+ terminalNodes <- names(which(degree(g, mode = "out") == 0))
+ g <- delete_vertices(g, terminalNodes)
+ message("Removed ", length(terminalNodes), " terminal nodes")
 }
 
 # --- Merge Strongly Connected Components (SCCs) ---

@@ -1,21 +1,23 @@
 # =============================================================================
 # booleanManager.R
 # Purpose: Boolean network construction, rule inference, and optimization
-# 
+# Contains both template-based and exhaustive Boolean rule inference methods
 # =============================================================================
 
 # =============================================================================
-# Enhanced Boolean Rule Synthesis with Multiple Templates
+# Template-Based Boolean Rule Synthesis
 # =============================================================================
 
 #' Generate multiple Boolean rule templates for a target gene
-#' Called by: synthesizeBestBooleanRule
-#' KEEP!
+#'
+#' Creates various Boolean logic templates (cooperative, redundant, majority, etc.)
+#' for a target gene based on its regulators and their regulatory signs.
 #'
 #' @param targetGene Character name of the target gene
 #' @param regulators Character vector of regulator gene names
 #' @param regulatorSigns Named numeric vector (1 for activation, -1 for repression)
 #' @return List of rule templates with descriptions
+#' @export
 generateBooleanTemplates <- function(targetGene, regulators, regulatorSigns) {
   
   if (length(regulators) == 0) {
@@ -80,16 +82,6 @@ generateBooleanTemplates <- function(targetGene, regulators, regulatorSigns) {
   if (length(activators) >= 2 && length(repressors) >= 1) {
     # Need at least one activator AND no repressors
     orActivators <- paste0("(", paste(activators, collapse = " | "), ")")
-    andRepressors <- if(length(repressors) > 0) paste0("!", paste(repressors, collapse = " & !")) else ""
-    
-    templates$balanced_regulation <- list(
-      rule = paste0(targetGene, ", ", orActivators, " & ", andRepressors),
-      description = "Balanced: any activator + all repressors off"
-    )
-  }
-  
-  if (length(activators) >= 2 && length(repressors) >= 1) {
-    orActivators <- paste0("(", paste(activators, collapse = " | "), ")")
     andRepressors <- paste0("!", paste(repressors, collapse = " & !"))
     
     templates$balanced_regulation <- list(
@@ -148,13 +140,16 @@ generateBooleanTemplates <- function(targetGene, regulators, regulatorSigns) {
 }
 
 #' Test multiple templates and select the best one
-#' Called by: synthesizeBooleanRulesBatch
+#'
+#' Evaluates multiple Boolean rule templates against expression data and
+#' returns the template with the highest accuracy score.
 #'
 #' @param targetGene Character name of the target gene
 #' @param regulators Character vector of regulator gene names
 #' @param regulatorSigns Named numeric vector of regulatory signs
-#' @param matBin Binary expression matrix
+#' @param matBin Binary expression matrix (genes x cells)
 #' @return List with best rule, score, and all tested templates
+#' @export
 synthesizeBestBooleanRule <- function(targetGene, regulators, regulatorSigns, matBin) {
   
   # Generate all possible templates
@@ -205,13 +200,15 @@ synthesizeBestBooleanRule <- function(targetGene, regulators, regulatorSigns, ma
 }
 
 #' Enhanced batch synthesis with template variety
-#' Called by: Main script(s)!
-#' KEEP!
 #'
-#' @param edges Data frame with columns TF, Target, regType
-#' @param matBin Binary expression matrix
-#' @param maxRegulators Maximum number of regulators per target
+#' Processes multiple genes and synthesizes Boolean rules using predefined
+#' templates. Tests various logic patterns and selects the best-fitting template.
+#'
+#' @param edges Data frame with columns TF, Target, regType, corr
+#' @param matBin Binary expression matrix (genes x cells)
+#' @param maxRegulators Maximum number of regulators per target gene
 #' @return Named list of rule objects with template information
+#' @export
 synthesizeBooleanRulesBatch <- function(edges, matBin, maxRegulators = 5) {
   
   targets <- unique(edges$Target)
@@ -262,7 +259,6 @@ synthesizeBooleanRulesBatch <- function(edges, matBin, maxRegulators = 5) {
         nRegulators = length(regulators),
         templateUsed = ruleResult$bestTemplateName,
         templateDescription = ruleResult$bestDescription,
-        biologicallyPlausible = TRUE
       )
       
     }, error = function(e) {
@@ -276,15 +272,17 @@ synthesizeBooleanRulesBatch <- function(edges, matBin, maxRegulators = 5) {
 }
 
 #' Helper function to score Boolean rules
-#' Called by: synthesizeBestBooleanRule
-#' KEEP!
 #'
-#' @param ruleStr BoolNet-style rule string
-#' @param matBin Binary expression matrix
-#' @return Accuracy score (0 to 1)
+#' Evaluates a Boolean rule against binary expression data and returns
+#' an accuracy score (proportion of correct predictions).
+#'
+#' @param ruleStr BoolNet-style rule string (e.g., "Gene1, Gene2 & !Gene3")
+#' @param matBin Binary expression matrix (genes x cells)
+#' @return Accuracy score between 0 and 1
+#' @export
 scoreBooleanRule <- function(ruleStr, matBin) {
   
-  # Main scoring logic
+  # Parse rule
   ruleParts <- strsplit(ruleStr, ",\\s*")[[1]]
   if (length(ruleParts) != 2) {
     warning("Invalid rule format: ", ruleStr)
@@ -332,24 +330,217 @@ scoreBooleanRule <- function(ruleStr, matBin) {
   }
   
   score <- mean(predictions == actual, na.rm = TRUE)
-  
   return(score)
 }
+
+# =============================================================================
+# Exhaustive Boolean Rule Learning (k-step approach)
+# =============================================================================
+
+#' Compute input-output pairs for Boolean rule learning (optimized)
+#'
+#' Creates input-output pairs by taking regulator states at time t and
+#' target gene state at time t+k. Optimized version that avoids per-row
+#' data frame construction and returns compact state indices.
+#'
+#' @param targetGene Character name of the target gene
+#' @param regulators Character vector of regulator gene names
+#' @param matBin Binary expression matrix (genes x cells)
+#' @param cellOrder Integer vector specifying cell ordering (e.g., by pseudotime)
+#' @param k Integer step size for temporal relationship (0 = same time)
+#' @return List with stateIndices, outputs, and regulators
+#' @export
+makeInputOutputPairs <- function(targetGene, regulators, matBin, cellOrder, k = 0) {
+  
+  # Validate inputs
+  if (!targetGene %in% rownames(matBin)) {
+    warning("Target gene ", targetGene, " not found in matrix")
+    return(NULL)
+  }
+  
+  missingRegs <- regulators[!regulators %in% rownames(matBin)]
+  if (length(missingRegs) > 0) {
+    warning("Regulators not found in matrix: ", paste(missingRegs, collapse = ", "))
+    regulators <- regulators[regulators %in% rownames(matBin)]
+  }
+  
+  if (length(regulators) == 0) {
+    warning("No valid regulators found for ", targetGene)
+    return(NULL)
+  }
+  
+  maxT <- length(cellOrder) - k
+  
+  if (maxT <= 0) {
+    warning("Not enough cells for k = ", k, " with ", length(cellOrder), " ordered cells")
+    return(NULL)
+  }
+  
+  # Check for constant target gene (optimization)
+  targetCells <- cellOrder[seq_len(maxT) + k]
+  targetVals  <- matBin[targetGene, targetCells]
+  if (length(unique(targetVals)) == 1) {
+    warning("Target gene ", targetGene, " is constant - skipping")
+    return(NULL)
+  }
+  
+  # Extract regulator matrix for all relevant timepoints
+  inputCells <- cellOrder[seq_len(maxT)]
+  regMatrix  <- matBin[regulators, inputCells, drop = FALSE]
+  
+  # Remove constant regulators (optimization)
+  regVariance <- apply(regMatrix, 1, function(x) length(unique(x)))
+  variableRegs <- regulators[regVariance > 1]
+  
+  if (length(variableRegs) == 0) {
+    warning("All regulators are constant for ", targetGene, " - skipping")
+    return(NULL)
+  }
+  
+  if (length(variableRegs) < length(regulators)) {
+    #message("Removed ", length(regulators) - length(variableRegs), " constant regulators for ", targetGene)
+    regulators <- variableRegs
+    regMatrix <- regMatrix[regulators, , drop = FALSE]
+  }
+  
+  R <- length(regulators)
+  
+  # Convert regulator states to state indices using binary encoding
+  weights <- 2^(0:(R-1))
+  stateIndices <- 1 + as.integer(regMatrix[1, ] * weights[1])
+  
+  if (R > 1) {
+    for (i in 2:R) {
+      stateIndices <- stateIndices + as.integer(regMatrix[i, ] * weights[i])
+    }
+  }
+  
+  # Get target outputs
+  outputs <- as.integer(targetVals)
+  
+  return(list(
+    stateIndices = stateIndices,
+    outputs = outputs,
+    regulators = regulators,
+    nStates = 2^R
+  ))
+}
+
+#' Find the best Boolean rules using optimized state counting
+#'
+#' Uses state counting instead of exhaustive enumeration to find optimal
+#' Boolean functions. Mathematically equivalent to exhaustive search with
+#' tie-breaking by OR, but orders of magnitude faster.
+#'
+#' @param ioData List from makeInputOutputPairs with stateIndices, outputs, etc.
+#' @return List with best score and best functions
+#' @export
+findBestBooleanRules <- function(ioData) {
+  
+  if (is.null(ioData)) {
+    warning("No input-output data provided")
+    return(list(score = 0, bestFns = list()))
+  }
+  
+  stateIndices <- ioData$stateIndices
+  outputs <- ioData$outputs
+  regulators <- ioData$regulators
+  nStates <- ioData$nStates
+  
+  if (length(stateIndices) == 0 || length(outputs) == 0) {
+    warning("Empty state indices or outputs")
+    return(list(score = 0, bestFns = list()))
+  }
+  
+  # Count outcomes for each unique state
+  count1 <- integer(nStates)  # Count of output=1 for each state
+  count0 <- integer(nStates)  # Count of output=0 for each state
+  
+  for (i in seq_along(stateIndices)) {
+    stateIdx <- stateIndices[i]
+    if (outputs[i] == 1) {
+      count1[stateIdx] <- count1[stateIdx] + 1
+    } else {
+      count0[stateIdx] <- count0[stateIdx] + 1
+    }
+  }
+  
+  # For each state, choose the majority outcome
+  # If tied, choose 1 (equivalent to OR-ing tied best functions)
+  outPattern <- as.integer(count1 >= count0)
+  
+  # Calculate the score of this optimal function
+  correct <- 0
+  total <- length(stateIndices)
+  
+  for (i in seq_along(stateIndices)) {
+    stateIdx <- stateIndices[i]
+    if (outPattern[stateIdx] == outputs[i]) {
+      correct <- correct + 1
+    }
+  }
+  
+  score <- correct / total
+  
+  # Create a function object in the same format as the old approach
+  bestFn <- list(
+    patternIdx = 0,  # Not meaningful in this approach
+    outPattern = outPattern,
+    score = score
+  )
+  
+  return(list(
+    score = score,
+    bestFns = list(bestFn),
+    functionsTested = nStates,  # We "tested" one function per state - fixed typo
+    totalPossible = 2^nStates,  # What exhaustive would have tested
+    earlyStop = FALSE,  # Not applicable to this method
+    method = "state_counting"
+  ))
+}
+
+#' Combine multiple Boolean functions using logical OR
+#'
+#' Takes a list of Boolean functions and combines them using OR logic.
+#' Used when multiple functions tie for the best score.
+#'
+#' @param fnList List of Boolean functions from findBestBooleanRules
+#' @return Integer vector representing combined Boolean function output
+#' @export
+combineBooleanFunctionsByOr <- function(fnList) {
+  if (length(fnList) == 0) {
+    warning("Empty function list provided")
+    return(integer(0))
+  }
+  
+  if (length(fnList) == 1) {
+    return(fnList[[1]]$outPattern)
+  }
+  
+  # Combine multiple functions with OR
+  mat <- sapply(fnList, `[[`, "outPattern")
+  return(as.integer(rowSums(mat) > 0))
+}
+
+# =============================================================================
+# Rule String Generation and Utilities
+# =============================================================================
 
 #' Generate BoolNet-compatible rule string from Boolean function
 #'
 #' Converts a Boolean function output pattern into a human-readable rule string
 #' suitable for BoolNet network specification.
 #'
-#' @param geneName Name of the target gene
+#' @param geneName Character name of the target gene
 #' @param regulators Character vector of regulator gene names
 #' @param outPattern Integer vector representing Boolean function output
 #' @return Character string in BoolNet rule format
 #' @export
 makeBoolNetRule <- function(geneName, regulators, outPattern) {
   
+  # Handle case with no regulators
   if (length(regulators) == 0) {
-    ruleStr <- ifelse(outPattern[1] == 1, geneName, paste0("! ", geneName))
+    ruleStr <- ifelse(outPattern[1] == 1, geneName, paste0("!", geneName))
     return(paste0(geneName, ", ", ruleStr))
   }
   
@@ -361,21 +552,25 @@ makeBoolNetRule <- function(geneName, regulators, outPattern) {
          ") doesn't match expected length (", expectedLength, ") for ", R, " regulators")
   }
   
+  # Build DNF (Disjunctive Normal Form) from truth table
   clauseList <- character()
   
   for (i in 0:(expectedLength - 1)) {
     if (outPattern[i + 1] == 1) {
+      # Convert index to binary representation
       bits <- as.integer(intToBits(i))[1:R]
-      andTerms <- ifelse(bits == 1, regulators, paste0("! ", regulators))
+      andTerms <- ifelse(bits == 1, regulators, paste0("!", regulators))
       clause <- paste0("(", paste(andTerms, collapse = " & "), ")")
       clauseList <- c(clauseList, clause)
     }
   }
   
+  # Handle case where function is always false
   if (length(clauseList) == 0) {
-    return(paste0(geneName, ", ! ", geneName))
+    return(paste0(geneName, ", !", geneName))
   }
   
+  # Combine clauses with OR
   ruleStr <- paste(clauseList, collapse = " | ")
   return(paste0(geneName, ", ", ruleStr))
 }
@@ -383,26 +578,24 @@ makeBoolNetRule <- function(geneName, regulators, outPattern) {
 #' Sanitize gene names inside a Boolean rule string
 #'
 #' Replaces gene names in a BoolNet-compatible rule string with sanitized
-#' versions based on a geneMap data frame. Preserves Boolean logic operators
-#' and proper spacing.
+#' versions based on a geneMap data frame. Preserves Boolean logic operators.
 #'
-#' @param ruleStr A character string in BoolNet format (e.g., "TP53, !MDM2 & ATM")
-#' @param geneMap A data frame with columns `originalName` and `sanitizedName`
-#'
-#' @return A sanitized BoolNet rule string
+#' @param ruleStr Character string in BoolNet format
+#' @param geneMap Data frame with columns `originalName` and `sanitizedName`
+#' @return Sanitized BoolNet rule string
+#' @export
 sanitizeRule <- function(ruleStr, geneMap) {
   parts <- strsplit(ruleStr, ",\\s*")[[1]]
   target <- parts[1]
-  logic  <- parts[2]
+  logic <- parts[2]
   
-  # Create a simple lookup for gene name replacement
   # Sort by name length (longest first) to avoid partial matches
-  geneNames <- geneMap$originalName[order(-nchar(geneMap$originalName))]
+  geneNames <- geneMap$OriginalName[order(-nchar(geneMap$OriginalName))]
   
   # Replace gene names in logic, preserving spaces and operators
   for (i in seq_along(geneNames)) {
     origName <- geneNames[i]
-    safeName <- geneMap$sanitizedName[geneMap$originalName == origName]
+    safeName <- geneMap$SanitizedName[geneMap$OriginalName == origName]
     
     # Use word boundary regex to avoid partial matches
     pattern <- paste0("\\b", gsub("([.|()\\^{}+$*?]|\\[|\\])", "\\\\\\1", origName), "\\b")
@@ -420,20 +613,82 @@ sanitizeRule <- function(ruleStr, geneMap) {
 #' Lookup sanitized gene name from a mapping data frame
 #'
 #' Given an original gene name, returns its sanitized version using a geneMap
-#' data frame with columns `originalName` and `sanitizedName`. If the name is
-#' not found in the map, returns the input as-is.
+#' data frame. If the name is not found, returns the input as-is.
 #'
-#' @param name A character string (original gene name to sanitize)
-#' @param geneMap A data frame with columns `originalName` and `sanitizedName`
-#'
+#' @param name Character string (original gene name to sanitize)
+#' @param geneMap Data frame with columns `originalName` and `sanitizedName`
 #' @return Sanitized gene name (character)
-#' @examples
-#' lookupSanitized("GATA-1", geneMap)
+#' @export
 lookupSanitized <- function(name, geneMap) {
-  matchIdx <- match(name, geneMap$originalName)
+  matchIdx <- match(name, geneMap$OriginalName)
   if (!is.na(matchIdx)) {
-    geneMap$sanitizedName[matchIdx]
+    geneMap$SanitizedName[matchIdx]
   } else {
     name
   }
+}
+
+# =============================================================================
+# Gene Name Sanitization Utilities
+# =============================================================================
+
+#' Sanitize a single gene name for BoolNet compatibility
+#'
+#' Removes special characters and ensures the name starts with a letter.
+#' Used to create BoolNet-compatible gene identifiers.
+#'
+#' @param name Character string to sanitize
+#' @return Sanitized gene name
+#' @export
+sanitizeGeneName <- function(name) {
+  name2 <- gsub("[^A-Za-z0-9_]", "_", trimws(name))
+  if (grepl("^[0-9]", name2)) name2 <- paste0("X", name2)
+  name2
+}
+
+#' Generate mapping between original and sanitized gene names
+#'
+#' Creates a data frame mapping original gene names to sanitized versions
+#' suitable for BoolNet networks.
+#'
+#' @param geneNames Character vector of original gene names
+#' @return Data frame with OriginalName and SanitizedName columns
+#' @export
+generateSanitizedGeneMapping <- function(geneNames) {
+  data.frame(
+    OriginalName = geneNames, 
+    SanitizedName = sapply(geneNames, sanitizeGeneName, USE.NAMES = FALSE), 
+    stringsAsFactors = FALSE
+  )
+}
+
+# =============================================================================
+# Binary State Decoding Utilities
+# =============================================================================
+
+#' Decode big integer state to binary vector
+#'
+#' Converts an encoded state (as big integer) back to a binary vector
+#' representing gene ON/OFF states. Used for attractor analysis.
+#'
+#' @param encodedVal Big integer encoded state
+#' @param nGenes Number of genes in the network
+#' @return Binary vector of length nGenes
+#' @export
+decodeBigIntegerState <- function(encodedVal, nGenes) {
+  # Note: Requires gmp package for bigz operations
+  if (!requireNamespace("gmp", quietly = TRUE)) {
+    stop("gmp package required for big integer operations")
+  }
+  
+  valBig <- gmp::as.bigz(encodedVal)
+  bitVec <- numeric(nGenes)
+  
+  for (i in seq_len(nGenes)) {
+    bitVec[i] <- as.integer(gmp::mod.bigz(valBig, gmp::as.bigz(2)))
+    valBig <- valBig %/% gmp::as.bigz(2)
+    if (valBig == 0) break
+  }
+  
+  return(bitVec)
 }

@@ -52,17 +52,19 @@ nameVec:
 ageCorrelation: 0.5
 attInitialThreshold: 0.10
 attFinalThreshold: 0.5
-boolMaxRegulators: 3
+boolMaxRegulators: 4
 boolMinPairs: 5
+boolNetMinScore: 0.65
 boolSamplingMethod: "smart"  # vs "exhaustive"
 boolTimeLimit: 20     # Minutes per gene
 cores: 1
+grnAddSelfActivation: False
 grnPositiveThreshold: 0.7
 grnNegativeThreshold: -0.7
 grnMergeStronglyConnectedComponents: True
 grnOnlyPositiveCorr: False
 grnRemoveIsolatedNodes: True
-grnRemoveTerminalNodes: True
+grnRemoveTerminalNodes: False
 fdrLevel: 0.05
 geneSwitchesBinarizeCutoff: 0.2
 geneSwitchesR2Cutoff: 0.1

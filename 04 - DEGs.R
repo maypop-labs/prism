@@ -38,9 +38,6 @@ message("DEG test complete")
 degTable <- degTable[degTable$q_value < config$fdrLevel, ]
 degTable <- degTable[order(degTable$q_value), ]
 
-cat("\014")
-cat("\n")
-
 # --- Save Output ---
 if (config$saveResults) {
   message("Saving DEGs to: ", ptPaths$degs)

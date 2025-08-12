@@ -191,10 +191,10 @@ extractRuleStatistics <- function(boolRules) {
     gene = names(boolRules),
     nRegulators = sapply(boolRules, function(x) x$nRegulators %||% NA),
     bestScore = sapply(boolRules, function(x) x$score %||% NA),
-    methodUsed = sapply(boolRules, function(x) x$methodUsed %||% "template"),
-    biologicallyPlausible = sapply(boolRules, function(x) x$biologicallyPlausible %||% NA)
+    method = sapply(boolRules, function(x) x$method %||% "unknown")
   )
 }
+
 
 #' Generate text summary report
 #' Called by: generateBooleanRuleReport
