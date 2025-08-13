@@ -43,8 +43,8 @@ message("Generating sanitized gene mapping...")
 geneMap <- generateSanitizedGeneMapping(rownames(cds))
 
 # --- Filter Rules by Score ---
-#minScore <- config$boolNetMinScore %||% 0.65
-minScore <- config$boolNetMinScore %||% -0.65
+minScore <- config$boolMinScore %||% 0.65
+
 message("Filtering rules with score ≥ ", minScore)
 boolRulesOriginal <- boolRules
 boolRules <- Filter(function(rule) {

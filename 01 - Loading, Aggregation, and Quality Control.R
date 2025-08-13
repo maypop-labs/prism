@@ -8,7 +8,6 @@
 # This script has a long runtime. Grab a cup of coffee. C[_]
 # =============================================================================
 
-
 # --- Initialization ---
 source("managers/attractorManager.R")
 source("managers/booleanManager.R")
@@ -24,13 +23,13 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- Load and Annotate Seurat Objects ---
-seuratList <- vector("list", length(config$nameVec))
-for (i in seq_along(config$nameVec)) {
-  message("=== Loading: ", config$nameVec[i], " ===")
+seuratList <- vector("list", length(config$donorIDs))
+for (i in seq_along(config$donorIDs)) {
+  message("=== Loading: ", config$donorIDs[i], " ===")
   counts <- Read10X(data.dir = paths$cellranger[i])
-  obj <- CreateSeuratObject(counts = counts, project = config$nameVec[i])
-  obj$donor_id <- config$nameVec[i]
-  obj$age <- config$ageVec[i]
+  obj <- CreateSeuratObject(counts = counts, project = config$donorIDs[i])
+  obj$donorID <- config$donorIDs[i]
+  obj$age <- config$ages[i]
   seuratList[[i]] <- obj
 }
 
@@ -46,7 +45,7 @@ mergedSeurat <- subset(mergedSeurat, subset = percent.mt < 15 & nFeature_RNA > 5
 # --- Preprocessing Pipeline ---
 message("Running Seurat v5 pipeline: normalization, PCA, clustering, and UMAP")
 mergedSeurat <- NormalizeData(mergedSeurat, normalization.method = "LogNormalize", scale.factor = 100000)
-mergedSeurat <- FindVariableFeatures(mergedSeurat, selection.method = "vst", nfeatures = 2000)
+mergedSeurat <- FindVariableFeatures(mergedSeurat, selection.method = "vst", nfeatures = config$seuratNumberOfFeatures)
 varFeatures  <- VariableFeatures(mergedSeurat)
 mergedSeurat <- ScaleData(mergedSeurat, features = varFeatures)
 mergedSeurat <- RunPCA(mergedSeurat, features = varFeatures)

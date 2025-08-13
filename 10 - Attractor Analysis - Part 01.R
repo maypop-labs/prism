@@ -19,7 +19,7 @@ source("functions.R")
 # --- Options ---
 options(warn = -1)
 config <- yaml::read_yaml("config.yaml")
-options(Seurat.object.assay.version = config$SeuratAssay)
+options(Seurat.object.assay.version = config$seuratAssay)
 registerDoParallel(cores = config$cores)
 
 # --- Parameters ---

@@ -32,7 +32,7 @@ cat("\n")
 
 # --- Convert to Monocle3 CellDataSet ---
 cds <- convertSeuratToCDS(seuratObj)
-rootAge = min(config$ageVec, na.rm = TRUE)
+rootAge = min(config$ages, na.rm = TRUE)
 
 # --- Pseudotime Rooting ---
 message("Running pseudotime analysis from age ", rootAge)

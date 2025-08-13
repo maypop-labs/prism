@@ -35,7 +35,7 @@ message("Loading DEG table from: ", ptPaths$degs)
 degTable <- readRDS(ptPaths$degs)
 
 # --- Filter Significant Genes ---
-sigGenes <- subset(degTable, q_value < config$fdrLevel)$gene_id
+sigGenes <- subset(degTable, q_value < config$geneSwitchesFDRLevel)$gene_id
 message("Number of significant genes: ", length(sigGenes))
 if (length(sigGenes) < config$minDEGs) stop(paste0("Fewer than ", config$minDEGs, " significant genes. Aborting."))
 cds <- cds[sigGenes, ]
@@ -53,7 +53,7 @@ message("Fitting logistic models")
 cds <- find_switch_logistic_fastglm(cds, downsample = TRUE, show_warning = TRUE)
 
 message("Filtering top switch genes")
-switchGenes <- filter_switchgenes(cds, allgenes = TRUE, topnum = config$maxSwitchDEGs, r2cutoff = config$geneSwitchesR2Cutoff)
+switchGenes <- filter_switchgenes(cds, allgenes = TRUE, topnum = config$geneSwitchesMaxDEGs, r2cutoff = config$geneSwitchesR2Cutoff)
 
 # --- Summarize switch genes for export ---
 switchDf <- as.data.frame(switchGenes, stringsAsFactors = FALSE)

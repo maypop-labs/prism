@@ -33,7 +33,7 @@ buildBasePaths <- function(config) {
 #' @return Vector of CellRanger paths for each sample
 buildCellrangerPaths <- function(config) {
   basePath <- paste0(config$rootPath, "cellranger_counts/")
-  paste0(basePath, config$nameVec, "_output/outs/filtered_feature_bc_matrix/")
+  paste0(basePath, config$donorIDs, "_output/outs/filtered_feature_bc_matrix/")
 }
 
 # =============================================================================

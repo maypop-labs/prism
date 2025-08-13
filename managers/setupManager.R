@@ -157,7 +157,7 @@ loadProjectConfig <- function(configPath = "config.yaml") {
   config <- yaml::read_yaml(configPath)
   
   # Validate required fields
-  requiredFields <- c("rootPath", "ageVec", "nameVec", "cores", "saveResults")
+  requiredFields <- c("rootPath", "ages", "donorIDs", "cores", "saveResults")
   missingFields <- setdiff(requiredFields, names(config))
   
   if (length(missingFields) > 0) {
@@ -165,8 +165,8 @@ loadProjectConfig <- function(configPath = "config.yaml") {
   }
   
   # Validate data consistency
-  if (length(config$ageVec) != length(config$nameVec)) {
-    stop("ageVec and nameVec must have the same length")
+  if (length(config$ages) != length(config$donorIDs)) {
+    stop("ages and donorIDs must have the same length")
   }
   
   # Normalize root path
@@ -176,7 +176,7 @@ loadProjectConfig <- function(configPath = "config.yaml") {
   
   # Validate numeric parameters
   numericParams <- c("cores", "ageCorrelation", "boolMaxRegulators", 
-                     "minCellTypeNumber", "figWidth", "figHeight", "figDPI")
+                     "singleRMinimumNumberOfCells", "figWidth", "figHeight", "figDPI")
   
   for (param in numericParams) {
     if (param %in% names(config) && !is.numeric(config[[param]])) {
@@ -189,7 +189,7 @@ loadProjectConfig <- function(configPath = "config.yaml") {
     cores = 1,
     ageCorrelation = 0.6,
     boolMaxRegulators = 3,
-    minCellTypeNumber = 1000,
+    singleRMinimumNumberOfCells = 1000,
     saveResults = TRUE,
     verbose = TRUE,
     figWidth = 6.5,
@@ -225,9 +225,9 @@ setupREnvironment <- function(config) {
   options(warn = -1)
   
   # Configure Seurat version if specified
-  if ("SeuratAssay" %in% names(config) && !is.null(config$SeuratAssay)) {
-    options(Seurat.object.assay.version = config$SeuratAssay)
-    message("Set Seurat assay version to: ", config$SeuratAssay)
+  if ("seuratAssay" %in% names(config) && !is.null(config$seuratAssay)) {
+    options(Seurat.object.assay.version = config$seuratAssay)
+    message("Set Seurat assay version to: ", config$seuratAssay)
   }
   
   # Configure parallel processing

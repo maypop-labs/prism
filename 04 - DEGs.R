@@ -35,7 +35,7 @@ degTable <- graph_test(cds, neighbor_graph = "principal_graph", cores = config$c
 message("DEG test complete")
 
 # --- Filter Significant Genes ---
-degTable <- degTable[degTable$q_value < config$fdrLevel, ]
+degTable <- degTable[degTable$q_value < config$geneSwitchesFDRLevel, ]
 degTable <- degTable[order(degTable$q_value), ]
 
 # --- Save Output ---

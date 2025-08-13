@@ -33,7 +33,7 @@ mergedSeurat$cellType <- cellAnno$labels
 
 # --- Sort By Most Common Cell Types ---
 cellTypeFreq <- sort(table(mergedSeurat$cellType), decreasing = TRUE)
-cellTypes <- names(cellTypeFreq[cellTypeFreq >= config$minCellTypeNumber])
+cellTypes <- names(cellTypeFreq[cellTypeFreq >= config$singleRMinimumNumberOfCells])
 message("Cell types: ", paste(cellTypes, collapse = ", "))
 
 if (config$saveResults) {
@@ -46,7 +46,7 @@ for (ct in cellTypes) {
   message("=== Processing cell type: ", readableCt, " ===")
 
   ctObj <- subset(mergedSeurat, subset = cellType == ct)
-  ctObj <- FindVariableFeatures(ctObj, nfeatures = config$nfeatures)
+  ctObj <- FindVariableFeatures(ctObj, nfeatures = config$singleRNumberOfFeatures)
   varGenes <- VariableFeatures(ctObj)
   ctObj <- ScaleData(ctObj, features = varGenes)
   ctObj <- RunPCA(ctObj, features = varGenes)

@@ -44,7 +44,7 @@ cellInfo  <- data.frame(row.names = colnames(exprMat))
 
 # --- Initialize SCENIC ---
 data(defaultDbNames)
-species  <- config$scenicSpecies
+species  <- config$grnScenicSpecies
 baseName <- paste0("motifAnnotations_", species)
 # Ordered list of possible dataset names shipped in different SCENIC releases
 candidates <- c(baseName, paste0(baseName, "_v10"), paste0(baseName, "_v9"), "motifAnnotations")
@@ -61,9 +61,9 @@ if (!loaded) { stop("No motif annotation object found for '", species, "'. Check
 
 message("Initializing SCENIC")
 scenicOptions <- initializeScenic(
-  org           = config$scenicSpecies,
+  org           = config$grnScenicSpecies,
   dbDir         = config$rcisTargetPath,
-  dbs           = config$scenicDBs,
+  dbs           = config$grnScenicDBs,
   nCores        = config$cores
 )
 
