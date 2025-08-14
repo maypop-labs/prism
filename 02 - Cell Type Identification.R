@@ -21,11 +21,11 @@ clearConsole()
 
 # --- Load Merged Seurat Object ---
 if (!file.exists(paths$static$mergedSeurat)) stop("Merged Seurat object not found")
-message("Loading merged Seurat RDS file")
+if (config$verbose) { message("Loading merged Seurat RDS file") }
 mergedSeurat <- readRDS(paths$static$mergedSeurat)
 
 # --- Assign Cell Types Using SingleR ---
-message("Assigning cell types using SingleR")
+if (config$verbose) { message("Assigning cell types using SingleR") }
 sce       <- as.SingleCellExperiment(mergedSeurat)
 ref       <- celldex::HumanPrimaryCellAtlasData()
 cellAnno  <- SingleR(test = sce, ref = ref, labels = ref$label.main)
@@ -34,7 +34,7 @@ mergedSeurat$cellType <- cellAnno$labels
 # --- Sort By Most Common Cell Types ---
 cellTypeFreq <- sort(table(mergedSeurat$cellType), decreasing = TRUE)
 cellTypes <- names(cellTypeFreq[cellTypeFreq >= config$singleRMinimumNumberOfCells])
-message("Cell types: ", paste(cellTypes, collapse = ", "))
+if (config$verbose) { message("Cell types: ", paste(cellTypes, collapse = ", ")) }
 
 if (config$saveResults) {
   saveRDS(cellTypes, file = paste0(paths$base$rds, "cell_types.rds"))
@@ -43,7 +43,7 @@ if (config$saveResults) {
 # --- Process Each Cell Type ---
 for (ct in cellTypes) {
   readableCt <- toTitleCase(gsub("_", " ", ct))
-  message("=== Processing cell type: ", readableCt, " ===")
+  message("Processing cell type: ", readableCt)
 
   ctObj <- subset(mergedSeurat, subset = cellType == ct)
   ctObj <- FindVariableFeatures(ctObj, nfeatures = config$singleRNumberOfFeatures)
@@ -80,7 +80,7 @@ for (ct in cellTypes) {
   # --- Save Results ---
   if (config$saveResults) {
     
-    message("Saving cell type frequency table as TSV file")
+    if (config$verbose) { message("Saving cell type frequency table as TSV file") }
     cellTypeFreqDf <- data.frame(
       cell_type = names(cellTypeFreq),
       number = as.integer(cellTypeFreq),
@@ -95,7 +95,7 @@ for (ct in cellTypes) {
       row.names = FALSE
     )
 
-    message("Saving top genes from PC1 and PC2 for ", readableCt)
+    if (config$verbose) { message("Saving top genes from PC1 and PC2 for ", readableCt) }
     loadings <- Loadings(ctObj, reduction = "pca")
     for (pc in 1:2) {
       pcName <- paste0("PC_", pc)
@@ -107,7 +107,7 @@ for (ct in cellTypes) {
       )
     }
     
-    message("Saving plots for ", readableCt)
+    if (config$verbose) { message("Saving plots for ", readableCt) }
     
     ggsave(paste0(paths$base$plots, "figure3_", readableCt, ".png"), pPCA,
            width = config$figWidth,
@@ -120,7 +120,7 @@ for (ct in cellTypes) {
            dpi = config$figDPI,
            units = "in")
     
-    message("Saving Seurat file for ", readableCt)
+    if (config$verbose) { message("Saving Seurat file for ", readableCt) }
     saveRDS(ctObj, file = paste0(paths$base$rds, ct, "_seurat.rds"))
   }
 }

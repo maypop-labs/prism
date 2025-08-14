@@ -47,11 +47,11 @@ getStaticFilePaths <- function(basePaths) {
   list(
     # Main Seurat objects
     mergedSeurat = paste0(basePaths$rds, "merged_seurat.rds"),
-    cellTypes = paste0(basePaths$rds, "cell_types.rds"),
+    cellTypes    = paste0(basePaths$rds, "cell_types.rds"),
     cellTypeFreq = paste0(basePaths$tsv, "cell_types.tsv"),
     
     # Main plots
-    pcaAllCells = paste0(basePaths$plots, "figure1.png"),
+    pcaAllCells  = paste0(basePaths$plots, "figure1.png"),
     umapAllCells = paste0(basePaths$plots, "figure2.png")
   )
 }

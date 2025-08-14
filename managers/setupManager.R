@@ -175,7 +175,7 @@ loadProjectConfig <- function(configPath = "config.yaml") {
   }
   
   # Validate numeric parameters
-  numericParams <- c("cores", "ageCorrelation", "boolMaxRegulators", 
+  numericParams <- c("cores", "pseudotimeMinAgeCorrelation", "boolMaxRegulators", 
                      "singleRMinimumNumberOfCells", "figWidth", "figHeight", "figDPI")
   
   for (param in numericParams) {
@@ -187,7 +187,7 @@ loadProjectConfig <- function(configPath = "config.yaml") {
   # Set reasonable defaults for missing optional parameters
   defaultValues <- list(
     cores = 1,
-    ageCorrelation = 0.6,
+    pseudotimeMinAgeCorrelation = 0.6,
     boolMaxRegulators = 3,
     singleRMinimumNumberOfCells = 1000,
     saveResults = TRUE,

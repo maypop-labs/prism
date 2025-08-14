@@ -9,7 +9,7 @@
 #       is located. Results will also be written to this path.
 #
 #   rcisTargetPath: This is the folder where databases are stored for use by
-#       RcisTarget, SCENIC, and GENIE3 in the `07 - GRN - Part 01.R` file.
+#       RcisTarget, SCENIC, and GENIE3 for GRN creation.
 #
 #   ages: This is a vector containing the chronological age of each cell
 #       sample.
@@ -49,7 +49,6 @@ donorIDs:
   - "76yo"
   
 # Experiment parameters
-ageCorrelation: 0.5
 cores: 1
 saveResults: True
 verbose: True
@@ -65,7 +64,13 @@ strokeSize: 0.33
 
 # Seurat
 seuratAssay: "v5"
+seuratMaxPercentMtDNA: 15
+seuratMinNumberOfRNAFeatures: 500
 seuratNumberOfFeatures: 2000
+seuratScaleFactor: 100000
+
+# Pseudotime
+pseudotimeMinAgeCorrelation: 0.5
 
 # DEGs
 minDEGs: 1000

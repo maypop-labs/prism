@@ -94,7 +94,7 @@ for (leaf in leafNodes) {
   )
   
   # Apply threshold (using p-value now too)
-  if (is.finite(corWithAge) && corWithAge >= config$ageCorrelation && pValue < 0.05) {
+  if (is.finite(corWithAge) && corWithAge >= config$pseudotimeMinAgeCorrelation && pValue < 0.05) {
     retained <- retained + 1
     retainedLeaves <- c(retainedLeaves, leaf)
     message("--- Branch retained from root to leaf ", leaf)
