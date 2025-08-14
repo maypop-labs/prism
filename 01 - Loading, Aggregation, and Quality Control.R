@@ -95,18 +95,18 @@ pUMAP <- DimPlot(seuratMerged,
 if (config$saveResults) {
   
   if (config$verbose) { message("Saving plots") }
-  ggsave(paste0(paths$static$pcaAllCells), pPCA,
+  ggsave(paths$static$pcaAllCellsByAge, pPCA,
          width  = config$figWidth,
          height = config$figHeight,
          dpi    = config$figDPI,
          units  = "in")
-  ggsave(paste0(paths$static$umapAllCells), pUMAP,
+  ggsave(paths$static$umapAllCellsByAge, pUMAP,
          width  = config$figWidth,
          height = config$figHeight,
          dpi    = config$figDPI,
          units  = "in")
   
-  if (config$verbose) { message("Saving merged Seurat object to disk") }
+  if (config$verbose) { message("Saving merged Seurat RDS file") }
   saveRDS(seuratMerged, file = paths$static$seuratMerged)
 }
 

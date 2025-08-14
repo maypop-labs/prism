@@ -1,5 +1,5 @@
 # =============================================================================
-# 03 - Pseudotime Core
+# 03 - Pseudotime
 #
 # Convert a cell-type-specific Seurat object to a Monocle3 CellDataSet,
 # perform pseudotime trajectory inference, identify valid branches,

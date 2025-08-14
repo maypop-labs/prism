@@ -33,96 +33,121 @@ seuratMerged$cellType <- cellAnno$labels
 
 # --- Sort By Most Common Cell Types ---
 cellTypeFreq <- sort(table(seuratMerged$cellType), decreasing = TRUE)
-cellTypes <- names(cellTypeFreq[cellTypeFreq >= config$singleRMinimumNumberOfCells])
+cellTypes    <- names(cellTypeFreq[cellTypeFreq >= config$singleRMinimumNumberOfCells])
 if (config$verbose) { message("Cell types: ", paste(cellTypes, collapse = ", ")) }
-
-if (config$saveResults) {
-  saveRDS(cellTypes, file = paste0(paths$base$rds, "cell_types.rds"))
-}
 
 # --- Process Each Cell Type ---
 for (ct in cellTypes) {
   readableCt <- toTitleCase(gsub("_", " ", ct))
-  message("Processing cell type: ", readableCt)
+  if (config$verbose) { message("Processing cell type: ", readableCt) }
+  ctPaths <- getCellTypeFilePaths(paths$base, ct)
 
   ctObj <- subset(seuratMerged, subset = cellType == ct)
   ctObj <- FindVariableFeatures(ctObj, nfeatures = config$singleRNumberOfFeatures)
-  varGenes <- VariableFeatures(ctObj)
-  ctObj <- ScaleData(ctObj, features = varGenes)
-  ctObj <- RunPCA(ctObj, features = varGenes)
+  varFt <- VariableFeatures(ctObj)
+  ctObj <- ScaleData(ctObj, features = varFt)
+  ctObj <- RunPCA(ctObj, features = varFt)
   ctObj <- FindNeighbors(ctObj, dims = 1:10)
   ctObj <- FindClusters(ctObj, resolution = 1)
   ctObj <- RunUMAP(ctObj, dims = 1:10)
 
   # --- Plotting ---
   pPCA <- DimPlot(ctObj,
-                  reduction = "pca",
-                  group.by = "age",
-                  pt.size = config$pointSize,
+                  reduction   = "pca",
+                  group.by    = "age",
+                  pt.size     = config$pointSize,
                   stroke.size = config$strokeSize,
-                  alpha = config$plotAlpha) +
-    ggtitle(paste("PCA for", readableCt)) +
-    theme(plot.title = element_text(hjust = config$hjust)) +
-    labs(x = "PC1") +
-    labs(y = "PC2")
+                  alpha       = config$plotAlpha) +
+                  ggtitle(paste("PCA for", readableCt)) +
+                  theme(plot.title = element_text(hjust = config$hjust)) +
+                  labs(x = "PC1") +
+                  labs(y = "PC2")
 
   pUMAP <- DimPlot(ctObj,
-                   reduction = "umap",
-                   group.by = "age",
-                   pt.size = config$pointSize,
+                   reduction   = "umap",
+                   group.by    = "age",
+                   pt.size     = config$pointSize,
                    stroke.size = config$strokeSize,
-                   alpha = config$plotAlpha) +
-    ggtitle(paste("UMAP for", readableCt)) +
-    theme(plot.title = element_text(hjust = config$hjust)) +
-    labs(x = "UMAP1") +
-    labs(y = "UMAP2")
+                   alpha       = config$plotAlpha) +
+                   ggtitle(paste("UMAP for", readableCt)) +
+                   theme(plot.title = element_text(hjust = config$hjust)) +
+                   labs(x = "UMAP1") +
+                   labs(y = "UMAP2")
 
   # --- Save Results ---
   if (config$saveResults) {
     
-    if (config$verbose) { message("Saving cell type frequency table as TSV file") }
-    cellTypeFreqDf <- data.frame(
-      cell_type = names(cellTypeFreq),
-      number = as.integer(cellTypeFreq),
-      row.names = NULL,
-      stringsAsFactors = FALSE
-    )
-    write.table(
-      cellTypeFreqDf,
-      file = file.path(paths$static$cellTypeFreq),
-      sep = "\t",
-      quote = FALSE,
-      row.names = FALSE
-    )
-
-    if (config$verbose) { message("Saving top genes from PC1 and PC2 for ", readableCt) }
-    loadings <- Loadings(ctObj, reduction = "pca")
-    for (pc in 1:2) {
-      pcName <- paste0("PC_", pc)
-      topGenes <- names(sort(loadings[, pcName], decreasing = TRUE))[1:50]
-      write.table(
-        topGenes,
-        file = paste0(paths$base$txt, ct, "_PCA_top_genes_", pcName, ".txt"),
-        quote = FALSE, row.names = FALSE, col.names = FALSE
-      )
-    }
-    
     if (config$verbose) { message("Saving plots for ", readableCt) }
     
-    ggsave(paste0(paths$base$plots, "figure3_", readableCt, ".png"), pPCA,
-           width = config$figWidth,
+    ggsave(ctPaths$pcaPlot, pPCA,
+           width  = config$figWidth,
            height = config$figHeight,
-           dpi = config$figDPI,
-           units = "in")
-    ggsave(paste0(paths$base$plots, "figure4_", readableCt, ".png"), pUMAP,
-           width = config$figWidth,
+           dpi    = config$figDPI,
+           units  = "in")
+    ggsave(ctPaths$pcaPlot, pUMAP,
+           width  = config$figWidth,
            height = config$figHeight,
-           dpi = config$figDPI,
-           units = "in")
+           dpi    = config$figDPI,
+           units  = "in")
     
     if (config$verbose) { message("Saving Seurat file for ", readableCt) }
-    saveRDS(ctObj, file = paste0(paths$base$rds, ct, "_seurat.rds"))
+    saveRDS(ctObj, file = ctPaths$seuratObject)
   }
+}
+
+# --- Plotting ---
+pPCA <- DimPlot(seuratMerged,
+                reduction   = "pca",
+                group.by    = "cellType",
+                pt.size     = config$pointSize,
+                stroke.size = config$strokeSize,
+                alpha       = config$plotAlpha) +
+                ggtitle("PCA Using All Cells") +
+                theme(plot.title = element_text(hjust = config$hjust)) +
+                labs(x = "PC1") +
+                labs(y = "PC2")
+
+pUMAP <- DimPlot(seuratMerged,
+                 reduction   = "umap.unintegrated",
+                 group.by    = "cellType",
+                 pt.size     = config$pointSize,
+                 stroke.size = config$strokeSize,
+                 alpha       = config$plotAlpha) +
+                 ggtitle("UMAP Using All Cells") +
+                 theme(plot.title = element_text(hjust = config$hjust)) +
+                 labs(x = "UMAP1") +
+                 labs(y = "UMAP2")
+
+# --- Save Results ---
+if (config$saveResults) {
+  if (config$verbose) { message("Saving cell types RDS file") }
+  saveRDS(cellTypes, file = paths$static$cellTypes)
+  
+  if (config$verbose) { message("Saving cell type frequency table as TSV file") }
+  cellTypeFreqDf <- data.frame(
+    cell_type = names(cellTypeFreq),
+    number = as.integer(cellTypeFreq),
+    row.names = NULL,
+    stringsAsFactors = FALSE
+  )
+  write.table(
+    cellTypeFreqDf,
+    file = file.path(paths$static$cellTypeFreq),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  if (config$verbose) { message("Saving plots") }
+  ggsave(paths$static$pcaAllCellsByType, pPCA,
+         width  = config$figWidth,
+         height = config$figHeight,
+         dpi    = config$figDPI,
+         units  = "in")
+  ggsave(paths$static$umapAllCellsByType, pUMAP,
+         width  = config$figWidth,
+         height = config$figHeight,
+         dpi    = config$figDPI,
+         units  = "in")
 }
 
 message("Done!")

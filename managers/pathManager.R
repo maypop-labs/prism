@@ -51,8 +51,10 @@ getStaticFilePaths <- function(basePaths) {
     cellTypeFreq = paste0(basePaths$tsv, "cell_types.tsv"),
     
     # Main plots
-    pcaAllCells  = paste0(basePaths$plots, "PCA_all_cells.png"),
-    umapAllCells = paste0(basePaths$plots, "UMAP_all_cells.png")
+    pcaAllCellsByAge   = paste0(basePaths$plots, "PCA_all_cells_by_age.png"),
+    umapAllCellsByAge  = paste0(basePaths$plots, "UMAP_all_cells_by_age.png"),
+    pcaAllCellsByType  = paste0(basePaths$plots, "PCA_all_cells_by_cell_type.png"),
+    umapAllCellsByType = paste0(basePaths$plots, "UMAP_all_cells_by_cell_type.png")
   )
 }
 
@@ -76,11 +78,8 @@ getCellTypeFilePaths <- function(basePaths, cellType) {
     umapPlot = paste0(basePaths$plots, "UMAP_", cellType, ".png"),
     
     # Analysis outputs
-    trajectoryCorrelations = paste0(basePaths$tsv, "trajectory_age_correlations_", cellType, ".tsv"),
-    
-    # PCA gene lists
-    pcaGenesPC1 = paste0(basePaths$txt, cellType, "_PCA_top_genes_PC_1.txt"),
-    pcaGenesPC2 = paste0(basePaths$txt, cellType, "_PCA_top_genes_PC_2.txt")
+    trajectoryCorrelations = paste0(basePaths$tsv, "trajectory_age_correlations_", cellType, ".tsv")
+
   )
 }
 
