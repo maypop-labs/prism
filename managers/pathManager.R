@@ -74,8 +74,9 @@ getCellTypeFilePaths <- function(basePaths, cellType) {
     retainedTrajectories = paste0(basePaths$rds, "retained_trajectories_", cellType, ".rds"),
     
     # Plots
-    pcaPlot = paste0(basePaths$plots, "PCA_", cellType, ".png"),
-    umapPlot = paste0(basePaths$plots, "UMAP_", cellType, ".png"),
+    pcaPlot                    = paste0(basePaths$plots, "PCA_", cellType, ".png"),
+    umapPlot                   = paste0(basePaths$plots, "UMAP_", cellType, ".png"),
+    trajectoryCorrelationsPlot = paste0(basePaths$plots, "trajectory_correlations_", cellType, "_summary.png"),
     
     # Analysis outputs
     trajectoryCorrelations = paste0(basePaths$tsv, "trajectory_age_correlations_", cellType, ".tsv")
@@ -96,18 +97,21 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
   basePrefix <- paste0(cellType, "_", trajectory)
   
   list(
-    # Monocle3 objects
-    monocle3             = paste0(basePaths$monocle3, "monocle3_", basePrefix),
-    monocle3GeneSwitches = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_geneSwitches"),
-    monocle3Smoothed     = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_smoothed"),
+    # Monocle3 directories
+    monocle3             = paste0(basePaths$monocle3, "monocle3_", basePrefix, "/"),
+    monocle3GeneSwitches = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_geneSwitches/"),
+    monocle3Smoothed     = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_smoothed/"),
 
+    # Pseudotime Analysis
+    ageVsPseudotimePlot         = paste0(basePaths$plots, basePrefix, "_age_vs_pseudotime.png"),
+    ageVsPseudotimeCombinedPlot = paste0(basePaths$plots, basePrefix, "_age_vs_pseudotime_combined.png"),
+    
     # Analysis intermediate files
-    degs            = paste0(basePaths$rds, basePrefix, "_degs.rds"),
-    degsTsv         = paste0(basePaths$tsv, basePrefix, "_degs.tsv"),
+    geneSwitches    = paste0(basePaths$rds, basePrefix, "_geneSwitches.rds"),
+    geneSwitchesTsv = paste0(basePaths$tsv, basePrefix, "_geneSwitches.tsv"),
     grn             = paste0(basePaths$rds, basePrefix, "_GRN.rds"),
     grnEdges        = paste0(basePaths$rds, basePrefix, "_GRN_edges.rds"),
     grnPreprocessed = paste0(basePaths$rds, basePrefix, "_GRN_preprocessed.rds"),
-    switchGenes     = paste0(basePaths$rds, basePrefix, "_switch_genes.rds"),
     
     # Boolean network files
     booleanRules = paste0(basePaths$rds, basePrefix, "_Boolean_Rules.rds"),

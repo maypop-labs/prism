@@ -1,5 +1,5 @@
 # ============================================================================
-# 08 - Boolean Regulation Debug (CORRECTED)
+# 07 - Boolean Regulation Debug (CORRECTED)
 # ----------------------------------------------------------------------------
 # Self-contained inference loop (no dependency on managers/booleanManager.R).
 # Safe to run with your usual project managers sourced; if you comment them out,

@@ -43,6 +43,7 @@ for (ct in cellTypes) {
   ctPaths <- getCellTypeFilePaths(paths$base, ct)
 
   ctObj <- subset(seuratMerged, subset = cellType == ct)
+  ctObj <- DietSeurat(ctObj, scale.data = FALSE)
   ctObj <- FindVariableFeatures(ctObj, nfeatures = config$singleRNumberOfFeatures)
   varFt <- VariableFeatures(ctObj)
   ctObj <- ScaleData(ctObj, features = varFt)
@@ -84,7 +85,7 @@ for (ct in cellTypes) {
            height = config$figHeight,
            dpi    = config$figDPI,
            units  = "in")
-    ggsave(ctPaths$pcaPlot, pUMAP,
+    ggsave(ctPaths$umapPlot, pUMAP,
            width  = config$figWidth,
            height = config$figHeight,
            dpi    = config$figDPI,

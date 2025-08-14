@@ -224,12 +224,6 @@ setupREnvironment <- function(config) {
   # Suppress warnings during processing (can be noisy with large datasets)
   options(warn = -1)
   
-  # Configure Seurat version if specified
-  if ("seuratAssay" %in% names(config) && !is.null(config$seuratAssay)) {
-    options(Seurat.object.assay.version = config$seuratAssay)
-    message("Set Seurat assay version to: ", config$seuratAssay)
-  }
-  
   # Configure parallel processing
   if ("cores" %in% names(config) && config$cores > 1) {
     if (!requireNamespace("doParallel", quietly = TRUE)) {

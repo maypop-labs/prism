@@ -1,5 +1,5 @@
 # =============================================================================
-# 07 - GRN Construction
+# 06 - GRN
 #
 # Build a complete gene regulatory network (GRN) using SCENIC from smoothed 
 # and filtered Monocle3 expression data and switch-like DEGs. Create signed
@@ -31,10 +31,10 @@ if (!dir.exists(ptPaths$monocle3GeneSwitches)) stop("Monocle3 object directory n
 message("Loading Monocle3 object from: ", ptPaths$monocle3GeneSwitches)
 cds <- load_monocle_objects(directory_path = ptPaths$monocle3GeneSwitches)
 
-# -- load Switch DEGs ---
-if (!file.exists(ptPaths$switchGenes)) stop("Switch DEG RDS file not found: ", ptPaths$switchGenes)
-message("Loading switch DEGs from: ", ptPaths$switchGenes)
-switchGenes <- readRDS(ptPaths$switchGenes)
+# -- load Switch Genes ---
+if (!file.exists(ptPaths$geneSwitches)) stop("Switch genes RDS file not found: ", ptPaths$geneSwitches)
+message("Loading switch genes from: ", ptPaths$geneSwitches)
+switchGenes <- readRDS(ptPaths$geneSwitches)
 
 # --- Filter and Normalize Expression Matrix ---
 exprMat   <- assay(cds, "smoothed_expr")

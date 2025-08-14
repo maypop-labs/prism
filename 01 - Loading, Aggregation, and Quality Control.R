@@ -35,7 +35,7 @@ for (i in seq_along(config$donorIDs)) {
 
 # --- Merge Seurat Objects ---
 if (config$verbose) { message("Merging all samples into a single Seurat object") }
-seuratMerged <- Reduce(function(x, y) merge(x, y, project = "All Ages and Cells"), seuratList)
+seuratMerged <- suppressWarnings(Reduce(function(x, y) merge(x, y, project = "All Ages and Cells"), seuratList))
 
 # --- Quality Control ---
 if (config$verbose) { message("Applying quality control filters") }
@@ -44,14 +44,14 @@ seuratMerged <- subset(seuratMerged,subset = percent.mt < config$seuratMaxPercen
 
 # --- Preprocessing Pipeline ---
 if (config$verbose) { message("Running Seurat v5 pipeline: normalization, PCA, clustering, and UMAP") }
-seuratMerged <- NormalizeData(seuratMerged, normalization.method = "LogNormalize", scale.factor = config$seuratScaleFactor)
-seuratMerged <- FindVariableFeatures(seuratMerged, selection.method = "vst", nfeatures = config$seuratNumberOfFeatures)
+seuratMerged <- NormalizeData(seuratMerged, normalization.method = "LogNormalize", scale.factor = config$seuratScaleFactor, verbose = config$verbose)
+seuratMerged <- FindVariableFeatures(seuratMerged, selection.method = "vst", nfeatures = config$seuratNumberOfFeatures, verbose = config$verbose)
 varFeatures  <- VariableFeatures(seuratMerged)
-seuratMerged <- ScaleData(seuratMerged, features = varFeatures)
-seuratMerged <- RunPCA(seuratMerged, features = varFeatures)
-seuratMerged <- FindNeighbors(seuratMerged, dims = 1:30)
-seuratMerged <- FindClusters(seuratMerged, resolution = 2, cluster.name = "unintegrated_clusters")
-seuratMerged <- RunUMAP(seuratMerged, dims = 1:30, reduction.name = "umap.unintegrated")
+seuratMerged <- ScaleData(seuratMerged, features = varFeatures, verbose = config$verbose)
+seuratMerged <- RunPCA(seuratMerged, features = varFeatures, verbose = config$verbose)
+seuratMerged <- FindNeighbors(seuratMerged, dims = 1:30, verbose = config$verbose)
+seuratMerged <- FindClusters(seuratMerged, resolution = 2, cluster.name = "unintegrated_clusters", verbose = config$verbose)
+seuratMerged <- RunUMAP(seuratMerged, dims = 1:30, reduction.name = "umap.unintegrated", verbose = config$verbose)
 
 # --- Integration by Donor ---
 if (config$verbose) { message("Performing donor-level integration") }
@@ -63,10 +63,10 @@ seuratMerged <- IntegrateLayers(
   new.reduction  = "integrated.cca",
   verbose        = config$verbose
 )
-seuratMerged <- JoinLayers(seuratMerged)
-seuratMerged <- FindNeighbors(seuratMerged, dims = 1:30, reduction = "integrated.cca")
-seuratMerged <- FindClusters(seuratMerged, resolution = 1)
-seuratMerged <- RunUMAP(seuratMerged, dims = 1:30, reduction = "integrated.cca")
+seuratMerged <- JoinLayers(seuratMerged, verbose = config$verbose)
+seuratMerged <- FindNeighbors(seuratMerged, dims = 1:30, reduction = "integrated.cca", verbose = config$verbose)
+seuratMerged <- FindClusters(seuratMerged, resolution = 1, verbose = config$verbose)
+seuratMerged <- RunUMAP(seuratMerged, dims = 1:30, reduction = "integrated.cca", verbose = config$verbose)
 
 # --- Plotting ---
 pPCA <- DimPlot(seuratMerged,

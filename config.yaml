@@ -24,7 +24,7 @@
 
 # File Paths
 rootPath: "E:/datasets/omics/skin/"
-rcisTargetPath: "E:/var/rcistarget"
+rcisTargetPath: "E:/var/rcistarget/"
 
 # Experiment outline
 ages:
@@ -50,8 +50,8 @@ donorIDs:
   
 # Experiment parameters
 cores: 1
-saveResults: True
-verbose: True
+saveResults: true
+verbose: true
 
 # Plot parameters
 figDPI: 300
@@ -61,23 +61,21 @@ hjust: 0.5
 plotAlpha: 0.75
 pointSize: 1.5
 strokeSize: 0.33
+plotBackground: "white"
+panelBackground: "white"
 
 # Seurat
-seuratAssay: "v5"
 seuratMaxPercentMtDNA: 15
 seuratMinNumberOfRNAFeatures: 500
 seuratNumberOfFeatures: 2000
 seuratScaleFactor: 100000
 
-# Pseudotime
-pseudotimeMinAgeCorrelation: 0.5
-
-# DEGs
-minDEGs: 1000
-
 # SingleR
 singleRMinimumNumberOfCells: 1000
 singleRNumberOfFeatures: 2000
+
+# Pseudotime
+pseudotimeMinAgeCorrelation: 0.5
 
 # Smoothing
 winSizePercent: 0.01
@@ -89,13 +87,13 @@ geneSwitchesMaxDEGs: 100000
 geneSwitchesR2Cutoff: 0.1
 
 # Gene regulatory Network (GRN)
-grnAddSelfActivation: False
+grnAddSelfActivation: false
 grnPositiveThreshold: 0.7
 grnNegativeThreshold: -0.7
-grnMergeStronglyConnectedComponents: True
-grnOnlyPositiveCorr: False
-grnRemoveIsolatedNodes: True
-grnRemoveTerminalNodes: False
+grnMergeStronglyConnectedComponents: true
+grnOnlyPositiveCorr: false
+grnRemoveIsolatedNodes: true
+grnRemoveTerminalNodes: false
 grnScenicDBs:
   - "hg38__refseq-r80__500bp_up_and_100bp_down_tss.mc9nr.feather"
   - "hg38__refseq-r80__10kb_up_and_down_tss.mc9nr.feather"

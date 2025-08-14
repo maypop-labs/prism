@@ -1,5 +1,5 @@
 # =============================================================================
-# 09 - BoolNet (Component-wise Analysis with Proper Isolation)
+# 08 - BoolNet (Component-wise Analysis with Proper Isolation)
 #
 # This script performs component-wise Boolean network analysis with proper
 # isolation of genes and regulators within each component

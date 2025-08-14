@@ -3,6 +3,10 @@
 # Purpose: Functions for analyzing Monocle3 pseudotime trajectories
 # =============================================================================
 
+###############################################################################
+# Core Analysis Functions
+###############################################################################
+
 calculateTrajectoryCorrelation <- function(subCds) {
   # Extract data
   pt <- pseudotime(subCds)
@@ -52,12 +56,76 @@ getRootCells <- function(cds, rootAge) {
   rownames(meta)[meta$age == rootAge]
 }
 
-runPseudotime <- function(cds, rootCells) {
-  cds <- preprocess_cds(cds, method = "PCA", num_dim = 50, norm_method = "log", scaling = TRUE, verbose = config$verbose)
-  cds <- reduce_dimension(cds, reduction_method = "UMAP", preprocess_method = "PCA", verbose = config$verbose)
-  cds <- cluster_cells(cds, reduction_method = "UMAP", cluster_method = "leiden", verbose = config$verbose)
+runPseudotime <- function(cds, rootCells, verbose = TRUE) {
+  cds <- preprocess_cds(cds, method = "PCA", num_dim = 50, norm_method = "log", scaling = TRUE, verbose = verbose)
+  cds <- reduce_dimension(cds, reduction_method = "UMAP", preprocess_method = "PCA", verbose = verbose)
+  cds <- cluster_cells(cds, reduction_method = "UMAP", cluster_method = "leiden", verbose = verbose)
   cds <- learn_graph(cds)
   order_cells(cds, reduction_method = "UMAP", root_cells = rootCells)
+}
+
+###############################################################################
+# Standardized Plotting Functions (Option A)
+###############################################################################
+
+createStandardPlot <- function(plotData, aes_mapping, geom_type = "point", 
+                               title = "", subtitle = "", config, 
+                               additional_geoms = NULL, additional_themes = NULL) {
+  p <- ggplot(plotData, aes_mapping)
+  
+  # Add geometry based on type
+  if (geom_type == "point") {
+    p <- p + geom_point(
+      alpha = config$plotAlpha,
+      size = config$pointSize,
+      stroke = config$strokeSize
+    )
+  } else if (geom_type == "col") {
+    p <- p + geom_col(alpha = config$plotAlpha)
+  } else if (geom_type == "point_colored") {
+    p <- p + geom_point(
+      alpha = config$plotAlpha,
+      size = config$pointSize,
+      stroke = config$strokeSize
+    )
+  }
+  
+  # Add additional geoms if provided
+  if (!is.null(additional_geoms)) {
+    for (geom in additional_geoms) {
+      p <- p + geom
+    }
+  }
+  
+  # Standard theme and formatting
+  p <- p + 
+    labs(title = title, subtitle = subtitle) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = config$hjust, size = 12, face = "bold"),
+      plot.subtitle = element_text(size = 10),
+      panel.grid.minor = element_blank(),
+      plot.background = element_rect(fill = "white", color = NA),
+      panel.background = element_rect(fill = "white", color = NA)
+    )
+  
+  # Add additional theme elements if provided
+  if (!is.null(additional_themes)) {
+    p <- p + additional_themes
+  }
+  
+  return(p)
+}
+
+saveStandardPlot <- function(plot, filename, config, width_scale = 1, height_scale = 1) {
+  ggsave(
+    filename = filename,
+    plot = plot,
+    width = config$figWidth * width_scale,
+    height = config$figHeight * height_scale,
+    dpi = config$figDPI,
+    units = "in"
+  )
 }
 
 ###############################################################################
@@ -65,49 +133,57 @@ runPseudotime <- function(cds, rootCells) {
 ###############################################################################
 
 # Function to create scatter plot for a single trajectory
-plotAgeVsPseudotime <- function(subCds, leafName, correlationResult) {
+plotAgeVsPseudotime <- function(subCds, leafName, correlationResult, config) {
   # Extract data
-  pt <- pseudotime(subCds)
-  ages <- colData(subCds)$age
+  pt       <- pseudotime(subCds)
+  ages     <- colData(subCds)$age
   donorIDs <- colData(subCds)$donorID
   
   # Create data frame
   plotData <- data.frame(
     pseudotime = pt,
-    age = ages,
-    donorID = donorIDs
+    age        = ages,
+    donorID    = donorIDs
   ) %>%
     filter(!is.na(pseudotime) & is.finite(pseudotime) & !is.na(age))
   
-  # Create the plot
-  p <- ggplot(plotData, aes(x = pseudotime, y = age)) +
-    geom_point(aes(color = as.factor(donorID)), alpha = 0.6, size = 0.8) +
-    geom_smooth(method = "lm", se = TRUE, color = "black", linewidth = 1) +
+  # Define additional geoms for this specific plot
+  additional_geoms <- list(
+    geom_smooth(method = "lm", se = TRUE, color = "black", linewidth = 1),
+    scale_color_viridis_d(option = "turbo")
+  )
+  
+  # Define additional theme elements
+  additional_themes <- theme(
+    legend.position = "none"
+  )
+  
+  # Create the plot using standardized function
+  p <- createStandardPlot(
+    plotData = plotData,
+    aes_mapping = aes(x = pseudotime, y = age, color = as.factor(donorID)),
+    geom_type = "point_colored",
+    title = paste0("Trajectory ", leafName),
+    subtitle = paste0("r = ", round(correlationResult$correlation, 3), 
+                      ", p = ", format(correlationResult$p_value, scientific = TRUE, digits = 2),
+                      "\nCells: ", correlationResult$n_cells, 
+                      ", Donors: ", correlationResult$n_donors),
+    config = config,
+    additional_geoms = additional_geoms,
+    additional_themes = additional_themes
+  ) +
     labs(
-      title = paste0("Trajectory ", leafName),
-      subtitle = paste0("r = ", round(correlationResult$correlation, 3), 
-                        ", p = ", format(correlationResult$p_value, scientific = TRUE, digits = 2),
-                        "\nCells: ", correlationResult$n_cells, 
-                        ", Donors: ", correlationResult$n_donors),
       x = "Pseudotime",
       y = "Donor Age",
       color = "donorID"
-    ) +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(size = 12, face = "bold"),
-      plot.subtitle = element_text(size = 10),
-      legend.position = "none",  # Remove legend to save space
-      panel.grid.minor = element_blank()
-    ) +
-    scale_color_viridis_d(option = "turbo")
+    )
   
   return(p)
 }
 
 # Function to create plots for all retained trajectories
 createTrajectoryPlots <- function(cds, retainedLeaves, branchStats, 
-                                  plotPath, cellType, saveIndividual = TRUE) {
+                                  basePaths, cellType, config, saveIndividual = TRUE) {
   
   # Get trajectory graph info
   trajGraph <- principal_graph(cds)[["UMAP"]]
@@ -120,6 +196,7 @@ createTrajectoryPlots <- function(cds, retainedLeaves, branchStats,
   # Create plot for each retained trajectory
   for (leaf in retainedLeaves) {
     message("Creating plot for trajectory ", leaf)
+    ptPaths <- getTrajectoryFilePaths(basePaths, cellType, leaf)
     
     # Extract cells for this trajectory
     sp <- shortest_paths(trajGraph, from = rootVertices, to = leaf, weights = NA)$vpath[[1]]
@@ -131,21 +208,23 @@ createTrajectoryPlots <- function(cds, retainedLeaves, branchStats,
     leafStats <- branchStats[branchStats$leaf == leaf, ]
     correlationResult <- list(
       correlation = leafStats$corWithAge,
-      p_value = leafStats$pValue,
-      n_cells = leafStats$nCells,
-      n_donors = leafStats$nDonors
+      p_value     = leafStats$pValue,
+      n_cells     = leafStats$nCells,
+      n_donors    = leafStats$nDonors
     )
     
-    # Create plot
-    p <- plotAgeVsPseudotime(subCds, leaf, correlationResult)
+    # Create plot using standardized function
+    p <- plotAgeVsPseudotime(subCds, leaf, correlationResult, config)
     plotList[[leaf]] <- p
     
     # Save individual plot if requested
     if (saveIndividual) {
-      ggsave(
-        filename = paste0(plotPath, "age_vs_pseudotime_", cellType, "_", leaf, ".png"),
+      saveStandardPlot(
         plot = p,
-        width = 8, height = 6, dpi = 300
+        filename = ptPaths$ageVsPseudotimePlot,
+        config = config,
+        width_scale = 1.2,
+        height_scale = 1.0
       )
     }
   }
@@ -163,59 +242,20 @@ createTrajectoryPlots <- function(cds, retainedLeaves, branchStats,
     combinedPlot <- combinedPlot + 
       plot_annotation(
         title = paste0("Age vs Pseudotime: ", cellType, " (", nPlots, " Retained Trajectories)"),
-        theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5))
+        theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = config$hjust))
       )
     
-    # Save combined plot
-    ggsave(
-      filename = paste0(plotPath, "age_vs_pseudotime_", cellType, "_combined.png"),
+    # Save combined plot using standardized function
+    saveStandardPlot(
       plot = combinedPlot,
-      width = nCols * 6, height = nRows * 5, dpi = 300
+      filename = ptPaths$ageVsPseudotimeCombinedPlot,
+      config = config,
+      width_scale = nCols * 0.92,
+      height_scale = nRows * 0.77
     )
     
     message("Saved combined plot with ", nPlots, " trajectories")
   }
   
   return(plotList)
-}
-
-# Function to create summary statistics plot
-createSummaryPlot <- function(branchStats, plotPath, cellType) {
-  # Filter to retained trajectories (assuming correlation > threshold)
-  retainedStats <- branchStats %>%
-    filter(!is.na(corWithAge) & corWithAge >= 0.6) %>%  # Adjust threshold as needed
-    arrange(desc(corWithAge))
-  
-  if (nrow(retainedStats) == 0) {
-    message("No retained trajectories to plot")
-    return(NULL)
-  }
-  
-  # Create summary bar plot
-  summaryPlot <- ggplot(retainedStats, aes(x = reorder(leaf, corWithAge), y = corWithAge)) +
-    geom_col(aes(fill = corWithAge), alpha = 0.8) +
-    geom_text(aes(label = paste0("n=", nCells)), hjust = -0.1, size = 3) +
-    coord_flip() +
-    labs(
-      title = paste0("Trajectory Age Correlations: ", cellType),
-      subtitle = paste0(nrow(retainedStats), " retained trajectories"),
-      x = "Trajectory",
-      y = "Age-Pseudotime Correlation",
-      fill = "Correlation"
-    ) +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(size = 14, face = "bold"),
-      axis.text.y = element_text(size = 10)
-    ) +
-    scale_fill_gradient2(low = "lightblue", mid = "blue", high = "darkblue", midpoint = 0.7)
-  
-  # Save summary plot
-  ggsave(
-    filename = paste0(plotPath, "trajectory_correlations_", cellType, "_summary.png"),
-    plot = summaryPlot,
-    width = 10, height = max(6, nrow(retainedStats) * 0.4), dpi = 300
-  )
-  
-  return(summaryPlot)
 }

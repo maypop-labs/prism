@@ -1,5 +1,5 @@
 # =============================================================================
-# 09 - BoolNet Debug.R
+# 08 - BoolNet Debug.R
 #
 # Load Boolean rules, create BoolNet object, compute attractors, save results.
 # Updated to work with optimized Boolean rules from state counting approach.

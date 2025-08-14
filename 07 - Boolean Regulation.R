@@ -1,5 +1,5 @@
 # =============================================================================
-# 08 - Boolean Regulation (Updated with k=0 Empirical Learning)
+# 07 - Boolean Regulation (Updated with k=0 Empirical Learning)
 #
 # Infer Boolean regulation rules for each gene using binary expression data
 # and structural information from the GRN. This version uses exhaustive Boolean

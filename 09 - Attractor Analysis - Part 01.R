@@ -1,5 +1,5 @@
 # =============================================================================
-# 10 - Attractor Analysis - Part 01
+# 09 - Attractor Analysis - Part 01
 #
 # Compute an age-associated score for each Boolean attractor by projecting it
 # onto a pseudotime-defined trajectory axis from young to old cell states.

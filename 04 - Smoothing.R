@@ -1,5 +1,5 @@
 # =============================================================================
-# 05 - Smoothing
+# 04 - Smoothing
 #
 # Smooth expression profiles along pseudotime using a moving average window.
 # Store smoothed values as a new assay and save the updated Monocle3 object.
@@ -25,12 +25,12 @@ clearConsole()
 
 # --- Load Monocle3 Object ---
 if (!dir.exists(ptPaths$monocle3)) stop("Monocle3 directory not found: ", ptPaths$monocle3)
-message("Loading Monocle3 object from: ", ptPaths$monocle3)
+if (config$verbose) { message("Loading Monocle3 object from: ", ptPaths$monocle3) }
 cds <- load_monocle_objects(directory_path = ptPaths$monocle3)
 
 # --- Ensure Pseudotime is Computed ---
 if (is.null(colData(cds)$Pseudotime)) {
-  message("Computing pseudotime")
+  if (config$verbose) { message("Computing pseudotime") }
   colData(cds)$Pseudotime <- pseudotime(cds)
 }
 
@@ -41,7 +41,7 @@ winSize   <- max(5, floor(config$winSizePercent * nCells))
 halfWin   <- floor(winSize / 2)
 exprMat   <- assay(cds, "counts")
 smoothMat <- matrix(0, nrow = nrow(exprMat), ncol = ncol(exprMat), dimnames = dimnames(exprMat))
-message("Smoothing expression values with window size: ", winSize)
+if (config$verbose) { message("Smoothing expression values with window size: ", winSize) }
 for (i in seq_len(nCells)) {
   idx <- cellOrder[max(1, i - halfWin):min(nCells, i + halfWin)]
   smoothMat[, cellOrder[i]] <- rowMeans(exprMat[, idx, drop = FALSE])
@@ -50,7 +50,7 @@ assay(cds, "smoothed_expr") <- smoothMat
 
 # --- Save Results ---
 if (config$saveResults) {
-  message("Saving smoothed Monocle3 object to: ", ptPaths$monocle3Smoothed)
+  if (config$verbose) { message("Saving smoothed Monocle3 object to: ", ptPaths$monocle3Smoothed) }
   save_monocle_objects(cds = cds, directory_path = ptPaths$monocle3Smoothed, comment = cellType)
 }
 
