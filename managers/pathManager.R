@@ -17,14 +17,14 @@ buildBasePaths <- function(config) {
   list(
     root = rootPath,
     cellranger = paste0(rootPath, "cellranger_counts/"),
-    results = paste0(rootPath, "results/"),
-    json = paste0(rootPath, "results/json/"),
-    plots = paste0(rootPath, "results/plots/"),
-    rds = paste0(rootPath, "results/rds/"),
-    tsv = paste0(rootPath, "results/tsv/"),
-    txt = paste0(rootPath, "results/txt/"),
-    monocle3 = paste0(rootPath, "results/monocle3/"),
-    graphml = paste0(rootPath, "results/graphml/")
+    results    = paste0(rootPath, "results/"),
+    json       = paste0(rootPath, "results/json/"),
+    plots      = paste0(rootPath, "results/plots/"),
+    rds        = paste0(rootPath, "results/rds/"),
+    tsv        = paste0(rootPath, "results/tsv/"),
+    txt        = paste0(rootPath, "results/txt/"),
+    monocle3   = paste0(rootPath, "results/monocle3/"),
+    graphml    = paste0(rootPath, "results/graphml/")
   )
 }
 
@@ -46,13 +46,13 @@ buildCellrangerPaths <- function(config) {
 getStaticFilePaths <- function(basePaths) {
   list(
     # Main Seurat objects
-    mergedSeurat = paste0(basePaths$rds, "merged_seurat.rds"),
+    seuratMerged = paste0(basePaths$rds, "seurat_merged.rds"),
     cellTypes    = paste0(basePaths$rds, "cell_types.rds"),
     cellTypeFreq = paste0(basePaths$tsv, "cell_types.tsv"),
     
     # Main plots
-    pcaAllCells  = paste0(basePaths$plots, "figure1.png"),
-    umapAllCells = paste0(basePaths$plots, "figure2.png")
+    pcaAllCells  = paste0(basePaths$plots, "PCA_all_cells.png"),
+    umapAllCells = paste0(basePaths$plots, "UMAP_all_cells.png")
   )
 }
 
@@ -65,16 +65,15 @@ getStaticFilePaths <- function(basePaths) {
 #' @param cellType Cell type string
 #' @return Named list of cell type-specific paths
 getCellTypeFilePaths <- function(basePaths, cellType) {
-  readableCt <- tools::toTitleCase(gsub("_", " ", cellType))
-  
+
   list(
     # Seurat objects
-    seuratObject = paste0(basePaths$rds, cellType, "_seurat.rds"),
+    seuratObject = paste0(basePaths$rds, "seurat_", cellType, ".rds"),
     retainedTrajectories = paste0(basePaths$rds, "retained_trajectories_", cellType, ".rds"),
     
     # Plots
-    pcaPlot = paste0(basePaths$plots, "figure3_", readableCt, ".png"),
-    umapPlot = paste0(basePaths$plots, "figure4_", readableCt, ".png"),
+    pcaPlot = paste0(basePaths$plots, "PCA_", cellType, ".png"),
+    umapPlot = paste0(basePaths$plots, "UMAP_", cellType, ".png"),
     
     # Analysis outputs
     trajectoryCorrelations = paste0(basePaths$tsv, "trajectory_age_correlations_", cellType, ".tsv"),
@@ -99,32 +98,34 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
   
   list(
     # Monocle3 objects
-    monocle3 = paste0(basePaths$monocle3, "monocle3_", basePrefix),
-    monocle3Smoothed = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_smoothed"),
-    monocle3SmoothedGeneSwitches = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_smoothed_geneSwitches"),
-    
+    monocle3             = paste0(basePaths$monocle3, "monocle3_", basePrefix),
+    monocle3GeneSwitches = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_geneSwitches"),
+    monocle3Smoothed     = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_smoothed"),
+
     # Analysis intermediate files
-    degs = paste0(basePaths$rds, basePrefix, "_degs.rds"),
-    degsTsv = paste0(basePaths$tsv, basePrefix, "_degs.tsv"),
-    switchDegs = paste0(basePaths$rds, basePrefix, "_switch_degs.rds"),
-    grnPart01 = paste0(basePaths$rds, basePrefix, "_GRN_Part_01.rds"),
-    grnPart02 = paste0(basePaths$rds, basePrefix, "_GRN_Part_02.rds"),
-    grnPart02Edges = paste0(basePaths$rds, basePrefix, "_GRN_Part_02_edges.rds"),
+    degs            = paste0(basePaths$rds, basePrefix, "_degs.rds"),
+    degsTsv         = paste0(basePaths$tsv, basePrefix, "_degs.tsv"),
+    grn             = paste0(basePaths$rds, basePrefix, "_GRN.rds"),
+    grnEdges        = paste0(basePaths$rds, basePrefix, "_GRN_edges.rds"),
+    grnPreprocessed = paste0(basePaths$rds, basePrefix, "_GRN_preprocessed.rds"),
+    switchGenes     = paste0(basePaths$rds, basePrefix, "_switch_genes.rds"),
     
     # Boolean network files
     booleanRules = paste0(basePaths$rds, basePrefix, "_Boolean_Rules.rds"),
-    boolnet = paste0(basePaths$rds, basePrefix, "_boolnet.rds"),
-    attractors = paste0(basePaths$rds, basePrefix, "_attractors.rds"),
-    attractorDf = paste0(basePaths$rds, basePrefix, "_attractor_df.rds"),
-    geneMap = paste0(basePaths$rds, basePrefix, "_gene_map.rds"),
+    boolnet      = paste0(basePaths$rds, basePrefix, "_boolnet.rds"),
+    attractors   = paste0(basePaths$rds, basePrefix, "_attractors.rds"),
+    attractorDf  = paste0(basePaths$rds, basePrefix, "_attractor_df.rds"),
+    geneMap      = paste0(basePaths$rds, basePrefix, "_gene_map.rds"),
     
     # Attractor analysis files
     attractorEntropy = paste0(basePaths$rds, basePrefix, "_attractor_entropy.rds"),
-    agingScore = paste0(basePaths$rds, basePrefix, "_aging_score.rds"),
+    agingScore       = paste0(basePaths$rds, basePrefix, "_aging_score.rds"),
     
     # GraphML exports
-    grnPlot = paste0(basePaths$plots, "figure5_", basePrefix, ".png"),
-    grnGraphml = paste0(basePaths$graphml, basePrefix, "_GRN.graphml"),
+    grnPlot                = paste0(basePaths$plots,   basePrefix, "_GRN.png"),
+    grnPlotPreprocessed    = paste0(basePaths$plots,   basePrefix, "_GRN_preprocessed.png"),
+    grnGraphml             = paste0(basePaths$graphml, basePrefix, "_GRN.graphml"),
+    grnGraphmlPreprocessed = paste0(basePaths$graphml, basePrefix, "_GRN_preprocessed.graphml"),
     
     # Perturbation analysis (these would be generated in loops)
     perturbationResults = paste0(basePaths$rds, basePrefix, "_perturbation_results.rds"),
@@ -212,8 +213,8 @@ initializeInteractivePaths <- function(needsCellType = FALSE, needsTrajectory = 
   basePaths <- buildBasePaths(config)
   
   result <- list(
-    paths = buildProjectPaths(config),
-    cellType = NULL,
+    paths      = buildProjectPaths(config),
+    cellType   = NULL,
     trajectory = NULL
   )
   
@@ -222,9 +223,9 @@ initializeInteractivePaths <- function(needsCellType = FALSE, needsTrajectory = 
       stop("Cell types file not found. Run script 02 first.")
     }
     
-    cellTypes <- readRDS(paste0(basePaths$rds, "cell_types.rds"))
+    cellTypes       <- readRDS(paste0(basePaths$rds, "cell_types.rds"))
     result$cellType <- showCellTypeMenu(cellTypes)
-    result$paths <- buildProjectPaths(config, result$cellType)
+    result$paths    <- buildProjectPaths(config, result$cellType)
     
     if (needsTrajectory) {
       trajectoryFile <- paste0(basePaths$rds, "retained_trajectories_", result$cellType, ".rds")
@@ -232,9 +233,9 @@ initializeInteractivePaths <- function(needsCellType = FALSE, needsTrajectory = 
         stop("Trajectory file not found for ", result$cellType, ". Run script 03 first.")
       }
       
-      trajectories <- readRDS(trajectoryFile)
+      trajectories      <- readRDS(trajectoryFile)
       result$trajectory <- showTrajectoryMenu(trajectories)
-      result$paths <- buildProjectPaths(config, result$cellType, result$trajectory)
+      result$paths      <- buildProjectPaths(config, result$cellType, result$trajectory)
     }
   }
   

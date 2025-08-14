@@ -25,11 +25,11 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- Load smoothed pseudotime trajectory ---
-if (!dir.exists(ptPaths$monocle3SmoothedGeneSwitches)) {
-  stop("Monocle3 object directory not found: ", ptPaths$monocle3SmoothedGeneSwitches)
+if (!dir.exists(ptPaths$monocle3GeneSwitches)) {
+  stop("Monocle3 object directory not found: ", ptPaths$monocle3GeneSwitches)
 }
-message("Loading Monocle3 object from: ", ptPaths$monocle3SmoothedGeneSwitches)
-cds <- load_monocle_objects(directory_path = ptPaths$monocle3SmoothedGeneSwitches)
+message("Loading Monocle3 object from: ", ptPaths$monocle3GeneSwitches)
+cds <- load_monocle_objects(directory_path = ptPaths$monocle3GeneSwitches)
 
 # --- Load Boolean rules ---
 if (!file.exists(ptPaths$booleanRules)) {

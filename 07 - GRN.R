@@ -27,14 +27,14 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- Load smoothed pseudotime trajectory ---
-if (!dir.exists(ptPaths$monocle3SmoothedGeneSwitches)) stop("Monocle3 object directory not found: ", ptPaths$monocle3SmoothedGeneSwitches)
-message("Loading Monocle3 object from: ", ptPaths$monocle3SmoothedGeneSwitches)
-cds <- load_monocle_objects(directory_path = ptPaths$monocle3SmoothedGeneSwitches)
+if (!dir.exists(ptPaths$monocle3GeneSwitches)) stop("Monocle3 object directory not found: ", ptPaths$monocle3GeneSwitches)
+message("Loading Monocle3 object from: ", ptPaths$monocle3GeneSwitches)
+cds <- load_monocle_objects(directory_path = ptPaths$monocle3GeneSwitches)
 
 # -- load Switch DEGs ---
-if (!file.exists(ptPaths$switchDegs)) stop("Switch DEG RDS file not found: ", ptPaths$switchDegs)
-message("Loading switch DEGs from: ", ptPaths$switchDegs)
-switchDEGs <- readRDS(ptPaths$switchDegs)
+if (!file.exists(ptPaths$switchGenes)) stop("Switch DEG RDS file not found: ", ptPaths$switchGenes)
+message("Loading switch DEGs from: ", ptPaths$switchGenes)
+switchGenes <- readRDS(ptPaths$switchGenes)
 
 # --- Filter and Normalize Expression Matrix ---
 exprMat   <- assay(cds, "smoothed_expr")
@@ -68,7 +68,7 @@ scenicOptions <- initializeScenic(
 )
 
 # --- Filter to DEGs and TFs ---
-degGenes   <- rownames(switchDEGs)
+degGenes   <- rownames(switchGenes)
 allTFs     <- getDbTfs(scenicOptions)
 unionGenes <- union(degGenes, allTFs)
 exprMat    <- exprMat[intersect(rownames(exprMat), unionGenes), ]
@@ -89,7 +89,7 @@ scenicOptions <- runSCENIC_3_scoreCells(scenicOptions, exprMatLog)
 
 # --- Extract and Prune Regulons ---
 message("Building signed regulatory network")
-sigGenes    <- rownames(switchDEGs)
+sigGenes    <- rownames(switchGenes)
 regulons    <- loadInt(scenicOptions, "regulons")
 scenicEdges <- purrr::map_dfr(names(regulons), function(tf) {
   targets   <- regulons[[tf]]
@@ -173,14 +173,14 @@ graphPlot <- ggraph(g, layout = "fr") + # 'fr' = force-directed
 
 # --- Save Final Results ---
 if (config$saveResults) {
-  message("Saving SCENIC object to: ", ptPaths$grnPart01)
-  saveRDS(scenicOptions, file = ptPaths$grnPart01)
+  message("Saving SCENIC object to: ", ptPaths$grnPreprocessed)
+  saveRDS(scenicOptions, file = ptPaths$grnPreprocessed)
   
-  message("Saving edge list to: ", ptPaths$grnPart02Edges)
-  saveRDS(scenicEdges, file = ptPaths$grnPart02Edges)
+  message("Saving edge list to: ", ptPaths$grnEdges)
+  saveRDS(scenicEdges, file = ptPaths$grnEdges)
   
-  message("Saving final GRN to: ", ptPaths$grnPart02)
-  saveRDS(g, file = ptPaths$grnPart02)
+  message("Saving final GRN to: ", ptPaths$grn)
+  saveRDS(g, file = ptPaths$grn)
   
   message("Saving final GRN to: ", ptPaths$grnGraphml)
   igraph::write_graph(g, ptPaths$grnGraphml, format = "graphml")

@@ -101,10 +101,10 @@ clearConsole()
 stopifnot(!is.null(config$boolMaxRegulators), config$boolMaxRegulators >= 1)
 message("Using up to ", config$boolMaxRegulators, " regulators per target.")
 
-if (!dir.exists(ptPaths$monocle3SmoothedGeneSwitches)) stop("Missing: ", ptPaths$monocle3SmoothedGeneSwitches)
-if (!file.exists(ptPaths$grnPart02Edges)) stop("Missing: ", ptPaths$grnPart02Edges)
-cds   <- load_monocle_objects(ptPaths$monocle3SmoothedGeneSwitches)
-edges <- readRDS(ptPaths$grnPart02Edges)
+if (!dir.exists(ptPaths$monocle3GeneSwitches)) stop("Missing: ", ptPaths$monocle3GeneSwitches)
+if (!file.exists(ptPaths$grnEdges)) stop("Missing: ", ptPaths$grnEdges)
+cds   <- load_monocle_objects(ptPaths$monocle3GeneSwitches)
+edges <- readRDS(ptPaths$grnEdges)
 
 # =============================================================================
 # SANITIZE ALL GENE NAMES FIRST - BEFORE ANYTHING ELSE

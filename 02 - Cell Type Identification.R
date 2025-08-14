@@ -20,19 +20,19 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- Load Merged Seurat Object ---
-if (!file.exists(paths$static$mergedSeurat)) stop("Merged Seurat object not found")
+if (!file.exists(paths$static$seuratMerged)) stop("Merged Seurat object not found")
 if (config$verbose) { message("Loading merged Seurat RDS file") }
-mergedSeurat <- readRDS(paths$static$mergedSeurat)
+seuratMerged <- readRDS(paths$static$seuratMerged)
 
 # --- Assign Cell Types Using SingleR ---
 if (config$verbose) { message("Assigning cell types using SingleR") }
-sce       <- as.SingleCellExperiment(mergedSeurat)
+sce       <- as.SingleCellExperiment(seuratMerged)
 ref       <- celldex::HumanPrimaryCellAtlasData()
 cellAnno  <- SingleR(test = sce, ref = ref, labels = ref$label.main)
-mergedSeurat$cellType <- cellAnno$labels
+seuratMerged$cellType <- cellAnno$labels
 
 # --- Sort By Most Common Cell Types ---
-cellTypeFreq <- sort(table(mergedSeurat$cellType), decreasing = TRUE)
+cellTypeFreq <- sort(table(seuratMerged$cellType), decreasing = TRUE)
 cellTypes <- names(cellTypeFreq[cellTypeFreq >= config$singleRMinimumNumberOfCells])
 if (config$verbose) { message("Cell types: ", paste(cellTypes, collapse = ", ")) }
 
@@ -45,7 +45,7 @@ for (ct in cellTypes) {
   readableCt <- toTitleCase(gsub("_", " ", ct))
   message("Processing cell type: ", readableCt)
 
-  ctObj <- subset(mergedSeurat, subset = cellType == ct)
+  ctObj <- subset(seuratMerged, subset = cellType == ct)
   ctObj <- FindVariableFeatures(ctObj, nfeatures = config$singleRNumberOfFeatures)
   varGenes <- VariableFeatures(ctObj)
   ctObj <- ScaleData(ctObj, features = varGenes)

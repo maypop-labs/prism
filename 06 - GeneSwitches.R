@@ -68,11 +68,11 @@ switchOut <- switchOut[order(switchOut$fdr, switchOut$geneId, na.last = TRUE), ]
 
 # --- Save Results ---
 if (config$saveResults) {
-  message("Saving GeneSwitches Monocle3 object to: ", ptPaths$monocle3SmoothedGeneSwitches)
-  save_monocle_objects(cds = cds, directory_path =  ptPaths$monocle3SmoothedGeneSwitches, comment = cellType)
+  message("Saving GeneSwitches Monocle3 object to: ", ptPaths$monocle3GeneSwitches)
+  save_monocle_objects(cds = cds, directory_path =  ptPaths$monocle3GeneSwitches, comment = cellType)
 
-  message("Saving switch genes to: ", ptPaths$switchDegs)
-  saveRDS(switchGenes, file = ptPaths$switchDegs)
+  message("Saving switch genes to: ", ptPaths$switchGenes)
+  saveRDS(switchGenes, file = ptPaths$switchGenes)
   
   message("Saving switch gene report to: ", ptPaths$degsTsv)
   write.table(switchOut, file = ptPaths$degsTsv, sep  = "\t", quote = FALSE, row.names = FALSE)

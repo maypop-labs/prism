@@ -28,10 +28,10 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- Load necessary data ---
-if (!dir.exists(ptPaths$monocle3SmoothedGeneSwitches)) stop("Monocle3 object directory not found: ", ptPaths$monocle3SmoothedGeneSwitches)
-if (!file.exists(ptPaths$grnPart02Edges)) stop("Edges RDS file not found: ", ptPaths$grnPart02Edges)
-cds   <- load_monocle_objects(directory_path = ptPaths$monocle3SmoothedGeneSwitches)
-edges <- readRDS(ptPaths$grnPart02Edges)
+if (!dir.exists(ptPaths$monocle3GeneSwitches)) stop("Monocle3 object directory not found: ", ptPaths$monocle3GeneSwitches)
+if (!file.exists(ptPaths$grnEdges)) stop("Edges RDS file not found: ", ptPaths$grnEdges)
+cds   <- load_monocle_objects(directory_path = ptPaths$monocle3GeneSwitches)
+edges <- readRDS(ptPaths$grnEdges)
 
 
 # --- Sanitize Gene Names for BoolNet Compatibility ---
