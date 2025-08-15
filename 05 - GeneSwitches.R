@@ -38,11 +38,18 @@ assay(cds, "expdata") <- log1p(assay(cds, "smoothed_expr"))
 if (config$verbose) { message("Binarizing expression") }
 cds <- binarize_exp(cds, fix_cutoff = TRUE, binarize_cutoff = config$geneSwitchesBinarizeCutoff)
 
+# Filter out genes with zero variance after binarization
+binary_assay <- assay(cds, "binary")
+gene_variance <- apply(binary_assay, 1, var, na.rm = TRUE)
+variable_genes <- rownames(cds)[gene_variance > 0]
+cds <- cds[variable_genes, ]
+if (config$verbose) { message("Retained ", length(variable_genes), " genes with binary variation") }
+
 if (config$verbose) { message("Fitting logistic models") }
 cds <- find_switch_logistic_fastglm(cds, downsample = TRUE, show_warning = TRUE)
 
 if (config$verbose) { message("Filtering top switch genes") }
-switchGenes <- filter_switchgenes(cds, allgenes = TRUE, topnum = config$geneSwitchesMaxDEGs, r2cutoff = config$geneSwitchesR2Cutoff)
+switchGenes <- filter_switchgenes(cds, allgenes = TRUE, topnum = config$geneSwitchesMaxGenes, r2cutoff = config$geneSwitchesR2Cutoff)
 
 # --- Summarize switch genes for export ---
 switchDf <- as.data.frame(switchGenes, stringsAsFactors = FALSE)

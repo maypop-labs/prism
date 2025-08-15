@@ -28,19 +28,21 @@ clearConsole()
 
 # --- Load smoothed pseudotime trajectory ---
 if (!dir.exists(ptPaths$monocle3GeneSwitches)) stop("Monocle3 object directory not found: ", ptPaths$monocle3GeneSwitches)
-message("Loading Monocle3 object from: ", ptPaths$monocle3GeneSwitches)
+if (config$verbose) { message("Loading Monocle3 object from: ", ptPaths$monocle3GeneSwitches) }
 cds <- load_monocle_objects(directory_path = ptPaths$monocle3GeneSwitches)
 
 # -- load Switch Genes ---
 if (!file.exists(ptPaths$geneSwitches)) stop("Switch genes RDS file not found: ", ptPaths$geneSwitches)
-message("Loading switch genes from: ", ptPaths$geneSwitches)
+if (config$verbose) { message("Loading switch genes from: ", ptPaths$geneSwitches) }
 switchGenes <- readRDS(ptPaths$geneSwitches)
 
+
 # --- Filter and Normalize Expression Matrix ---
-exprMat   <- assay(cds, "smoothed_expr")
-keepGenes <- rowSums(exprMat > 1) >= 10
-exprMat   <- exprMat[keepGenes, ]
-cellInfo  <- data.frame(row.names = colnames(exprMat))
+switchGeneNames <- rownames(switchGenes)
+exprMat         <- assay(cds, "smoothed_expr")
+keepGenes       <- rowSums(exprMat > 1) >= 10
+exprMat         <- exprMat[keepGenes, ]
+cellInfo        <- data.frame(row.names = colnames(exprMat))
 
 # --- Initialize SCENIC ---
 data(defaultDbNames)
@@ -59,43 +61,41 @@ for (ds in candidates) {
 }
 if (!loaded) { stop("No motif annotation object found for '", species, "'. Check your RcisTarget installation or download the annotation manually.")  }
 
-message("Initializing SCENIC")
+if (config$verbose) { message("Initializing SCENIC") }
 scenicOptions <- initializeScenic(
-  org           = config$grnScenicSpecies,
-  dbDir         = config$rcisTargetPath,
-  dbs           = config$grnScenicDBs,
-  nCores        = config$cores
+  org    = config$grnScenicSpecies,
+  dbDir  = config$rcisTargetPath,
+  dbs    = config$grnScenicDBs,
+  nCores = config$cores
 )
 
-# --- Filter to DEGs and TFs ---
-degGenes   <- rownames(switchGenes)
+# --- Filter to switch genes and TFs ---
 allTFs     <- getDbTfs(scenicOptions)
-unionGenes <- union(degGenes, allTFs)
+unionGenes <- union(switchGeneNames, allTFs)
 exprMat    <- exprMat[intersect(rownames(exprMat), unionGenes), ]
 
 # --- Run SCENIC Pipeline ---
-message("Filtering genes and calculating co-expression")
+if (config$verbose) { message("Filtering genes and calculating co-expression") }
 filteredGenes <- geneFiltering(exprMat, scenicOptions)
 exprMatLog    <- log2(exprMat[filteredGenes, ] + 1)
 runCorrelation(exprMatLog, scenicOptions)
 
-message("Running GENIE3")
+if (config$verbose) { message("Running GENIE3") }
 runGenie3(exprMatLog, scenicOptions)
 
-message("Inferring regulons and scoring")
+if (config$verbose) { message("Inferring regulons and scoring") }
 scenicOptions <- runSCENIC_1_coexNetwork2modules(scenicOptions)
 scenicOptions <- runSCENIC_2_createRegulons(scenicOptions, onlyPositiveCorr = config$grnOnlyPositiveCorr)
 scenicOptions <- runSCENIC_3_scoreCells(scenicOptions, exprMatLog)
 
 # --- Extract and Prune Regulons ---
-message("Building signed regulatory network")
-sigGenes    <- rownames(switchGenes)
+if (config$verbose) { message("Building signed regulatory network") }
 regulons    <- loadInt(scenicOptions, "regulons")
 scenicEdges <- purrr::map_dfr(names(regulons), function(tf) {
   targets   <- regulons[[tf]]
   if (length(targets) > 0) data.frame(TF = tf, Target = targets)
 })
-scenicEdges <- scenicEdges %>% filter(Target %in% sigGenes)
+scenicEdges <- scenicEdges %>% filter(Target %in% switchGeneNames)
 
 # --- Annotate Edge Sign via Correlation ---
 exprMat        <- exprMat[intersect(rownames(exprMat), unique(c(scenicEdges$TF, scenicEdges$Target))), ]
@@ -104,42 +104,36 @@ scenicEdges    <- scenicEdges %>% filter(TF %in% validGenes & Target %in% validG
 missingTFs     <- setdiff(scenicEdges$TF, validGenes)
 missingTargets <- setdiff(scenicEdges$Target, validGenes)
 if (length(missingTFs) | length(missingTargets)) {
-  message("Dropped ", length(missingTFs), " TFs and ",
-          length(missingTargets), " targets that were absent from exprMat after filtering.")
+  if (config$verbose) { message("Dropped ", length(missingTFs), " TFs and ", length(missingTargets), " targets that were absent from exprMat after filtering.") }
 }
 
-getCorrelation <- function(tf, tg) cor(exprMat[tf, ], exprMat[tg, ], method = "spearman")
-scenicEdges$corr <- mapply(getCorrelation, scenicEdges$TF, scenicEdges$Target)
-scenicEdges <- scenicEdges %>%
-  filter(corr > config$grnPositiveThreshold |
-           corr < -config$grnNegativeThreshold)
+getCorrelation      <- function(tf, tg) cor(exprMat[tf, ], exprMat[tg, ], method = "spearman")
+scenicEdges$corr    <- mapply(getCorrelation, scenicEdges$TF, scenicEdges$Target)
+scenicEdges         <- scenicEdges %>% filter(corr > config$grnPositiveThreshold | corr < -config$grnNegativeThreshold)
 scenicEdges$regType <- ifelse(scenicEdges$corr >= 0, "Activation", "Inhibition")
 
 # # --- Add Self-Activating Loops to Orphan Targets ---
 if (config$grnAddSelfActivation) {
- noActivatorTargets <- scenicEdges %>%
-   group_by(Target) %>%
-   summarize(hasActivator = any(regType == "Activation")) %>%
-   filter(!hasActivator) %>% pull(Target)
+ noActivatorTargets <- scenicEdges %>% group_by(Target) %>% summarize(hasActivator = any(regType == "Activation")) %>% filter(!hasActivator) %>% pull(Target)
  if (length(noActivatorTargets) > 0) {
-   selfEdges <- data.frame(
+  selfEdges <- data.frame(
      TF      = noActivatorTargets,
      Target  = noActivatorTargets,
      regType = "Activation",
      corr    = 1
    )
    scenicEdges <- bind_rows(scenicEdges, selfEdges)
-   message("Added self-activation loops for ", length(noActivatorTargets), " orphan targets")
+   if (config$verbose) { message("Added self-activation loops for ", length(noActivatorTargets), " orphan targets") }
  }
 }
 # --- Build Graph and Prune ---
 g <- graph_from_data_frame(scenicEdges, directed = TRUE)
-message("Initial network: ", vcount(g), " nodes, ", ecount(g), " edges")
+if (config$verbose) { message("Initial network: ", vcount(g), " nodes, ", ecount(g), " edges") }
 
 if (config$grnRemoveTerminalNodes) {
  terminalNodes <- names(which(degree(g, mode = "out") == 0))
  g <- delete_vertices(g, terminalNodes)
- message("Removed ", length(terminalNodes), " terminal nodes")
+ if (config$verbose) { message("Removed ", length(terminalNodes), " terminal nodes") }
 }
 
 # --- Merge Strongly Connected Components (SCCs) ---
@@ -147,7 +141,7 @@ if (config$grnMergeStronglyConnectedComponents) {
   comp <- components(g, mode = "strong")
   gMerged <- contract.vertices(g, comp$membership, vertex.attr.comb = "concat")
   g <- igraph::simplify(gMerged, remove.loops = TRUE, edge.attr.comb = "first")
-  message("Merged ", max(comp$membership), " strongly connected components")
+  if (config$verbose) { message("Merged ", max(comp$membership), " strongly connected components") }
 }
 
 # --- Remove isolated nodes ---
@@ -155,11 +149,11 @@ if (config$grnRemoveIsolatedNodes) {
   isolatedNodes <- names(which(degree(g, mode = "all") == 0))
   if (length(isolatedNodes) > 0) {
     g <- delete_vertices(g, isolatedNodes)
-    message("Removed ", length(isolatedNodes), " isolated self-activating nodes")
+    if (config$verbose) { message("Removed ", length(isolatedNodes), " isolated self-activating nodes") }
   }  
 }
 
-message("Final network: ", vcount(g), " nodes, ", ecount(g), " edges")
+if (config$verbose) { message("Final network: ", vcount(g), " nodes, ", ecount(g), " edges") }
 
 # --- Create Network Plot ---
 graphPlot <- ggraph(g, layout = "fr") + # 'fr' = force-directed
@@ -173,19 +167,19 @@ graphPlot <- ggraph(g, layout = "fr") + # 'fr' = force-directed
 
 # --- Save Final Results ---
 if (config$saveResults) {
-  message("Saving SCENIC object to: ", ptPaths$grnPreprocessed)
+  if (config$verbose) { message("Saving SCENIC object to: ", ptPaths$grnPreprocessed) }
   saveRDS(scenicOptions, file = ptPaths$grnPreprocessed)
   
-  message("Saving edge list to: ", ptPaths$grnEdges)
+  if (config$verbose) { message("Saving edge list to: ", ptPaths$grnEdges) }
   saveRDS(scenicEdges, file = ptPaths$grnEdges)
   
-  message("Saving final GRN to: ", ptPaths$grn)
+  if (config$verbose) { message("Saving final GRN to: ", ptPaths$grn) }
   saveRDS(g, file = ptPaths$grn)
   
-  message("Saving final GRN to: ", ptPaths$grnGraphml)
+  if (config$verbose) { message("Saving final GRN to: ", ptPaths$grnGraphml) }
   igraph::write_graph(g, ptPaths$grnGraphml, format = "graphml")
   
-  message("Saving GRN plot to: ", ptPaths$grnPlot)
+  if (config$verbose) { message("Saving GRN plot to: ", ptPaths$grnPlot) }
   ggsave(ptPaths$grnPlot, graphPlot,
          width = config$figWidth,
          height = config$figHeight,
@@ -199,9 +193,9 @@ for (folder in scenicFolders) {
   if (dir.exists(folder)) {
     tryCatch({
       unlink(folder, recursive = TRUE)
-      message("Successfully deleted SCENIC folder: ", folder)
+      if (config$verbose) { message("Successfully deleted SCENIC folder: ", folder) }
     }, error = function(e) {
-      warning("Failed to delete folder ", folder, ": ", e$message)
+      if (config$verbose) { warning("Failed to delete folder ", folder, ": ", e$message) }
     })
   }
 }

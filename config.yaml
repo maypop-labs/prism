@@ -83,7 +83,7 @@ winSizePercent: 0.01
 # GeneSwitches
 geneSwitchesBinarizeCutoff: 0.2
 geneSwitchesFDRLevel: 0.05
-geneSwitchesMaxDEGs: 100000
+geneSwitchesMaxGenes: 100000
 geneSwitchesR2Cutoff: 0.1
 
 # Gene regulatory Network (GRN)
