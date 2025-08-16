@@ -1,9 +1,9 @@
 # =============================================================================
 # 06 - GRN
 #
-# Build a complete gene regulatory network (GRN) using SCENIC from smoothed 
-# and filtered Monocle3 expression data and switch-like DEGs. Create signed
-# network, prune, and save final results.
+# Build a complete gene regulatory network (GRN) with SCENIC and GENIE3 from
+# smoothed and filtered Monocle3 expression data and switch-like genes. Create
+# signed network, prune, and save final results.
 #
 # This script has a long runtime. Grab a cup of coffee. C[_]
 # =============================================================================
@@ -11,6 +11,7 @@
 # --- Initialization ---
 source("managers/attractorManager.R")
 source("managers/booleanManager.R")
+source("managers/grnManager.R")
 source("managers/pathManager.R")
 source("managers/pseudotimeManager.R")
 source("managers/setupManager.R")
@@ -130,6 +131,22 @@ if (config$grnAddSelfActivation) {
 g <- graph_from_data_frame(scenicEdges, directed = TRUE)
 if (config$verbose) { message("Initial network: ", vcount(g), " nodes, ", ecount(g), " edges") }
 
+# --- Save PREPROCESSED network (before post-processing) ---
+if (config$saveResults) {
+  saveGrnOutputSet(
+    graph = g,
+    rdsPath = ptPaths$grnPreprocessed,
+    plotPath = ptPaths$grnPlotPreprocessed,
+    graphmlPath = ptPaths$grnGraphmlPreprocessed,
+    title = "Gene Regulatory Network (Preprocessed)",
+    config = config,
+    verbose = config$verbose
+  )
+}
+
+# Store the preprocessed graph for comparison
+gPreprocessed <- g
+
 if (config$grnRemoveTerminalNodes) {
  terminalNodes <- names(which(degree(g, mode = "out") == 0))
  g <- delete_vertices(g, terminalNodes)
@@ -149,42 +166,36 @@ if (config$grnRemoveIsolatedNodes) {
   isolatedNodes <- names(which(degree(g, mode = "all") == 0))
   if (length(isolatedNodes) > 0) {
     g <- delete_vertices(g, isolatedNodes)
-    if (config$verbose) { message("Removed ", length(isolatedNodes), " isolated self-activating nodes") }
+    if (config$verbose) { message("Removed ", length(isolatedNodes), " isolated nodes") }
   }  
 }
 
 if (config$verbose) { message("Final network: ", vcount(g), " nodes, ", ecount(g), " edges") }
 
-# --- Create Network Plot ---
-graphPlot <- ggraph(g, layout = "fr") + # 'fr' = force-directed
-  geom_edge_link(aes(colour = regType),
-                 alpha = config$plotAlpha) +
-  geom_node_point(size = config$pointSize) +
-  ggtitle("Gene Regulatory Network") +
-  theme(plot.title = element_text(hjust = config$hjust)) +
-  theme_graph(background = "white") +
-  theme(legend.title = element_blank())
-
 # --- Save Final Results ---
 if (config$saveResults) {
-  if (config$verbose) { message("Saving SCENIC object to: ", ptPaths$grnPreprocessed) }
-  saveRDS(scenicOptions, file = ptPaths$grnPreprocessed)
-  
-  if (config$verbose) { message("Saving edge list to: ", ptPaths$grnEdges) }
-  saveRDS(scenicEdges, file = ptPaths$grnEdges)
+  saveGrnOutputSet(
+    graph = g,
+    rdsPath = ptPaths$grn,
+    plotPath = ptPaths$grnPlot,
+    graphmlPath = ptPaths$grnGraphml,
+    title = "Gene Regulatory Network",
+    config = config,
+    verbose = config$verbose
+  )
+}
+
+if (config$saveResults) {
+
+  if (config$verbose) { message("Saving preprocessed GRN to: ", ptPaths$grnPreprocessed) }
+  saveRDS(gPreprocessed, file = ptPaths$grnPreprocessed)
   
   if (config$verbose) { message("Saving final GRN to: ", ptPaths$grn) }
   saveRDS(g, file = ptPaths$grn)
   
-  if (config$verbose) { message("Saving final GRN to: ", ptPaths$grnGraphml) }
-  igraph::write_graph(g, ptPaths$grnGraphml, format = "graphml")
-  
-  if (config$verbose) { message("Saving GRN plot to: ", ptPaths$grnPlot) }
-  ggsave(ptPaths$grnPlot, graphPlot,
-         width = config$figWidth,
-         height = config$figHeight,
-         dpi = config$figDPI,
-         units = "in")
+  if (config$verbose) { message("Saving edge list to: ", ptPaths$grnEdges) }
+  saveRDS(scenicEdges, file = ptPaths$grnEdges)
+
 }
 
 # --- Clean up SCENIC temporary folders ---
