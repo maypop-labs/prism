@@ -64,6 +64,160 @@ runPseudotime <- function(cds, rootCells, verbose = TRUE) {
   order_cells(cds, reduction_method = "UMAP", root_cells = rootCells)
 }
 
+# =============================================================================
+# smoothPseudotimeExpression
+# 
+# Smooths gene expression profiles along pseudotime using a moving average window
+# and saves the updated Monocle3 object with smoothed expression as a new assay.
+# =============================================================================
+
+#' Smooth Gene Expression Along Pseudotime
+#'
+#' Applies moving average smoothing to gene expression profiles along pseudotime
+#' to reduce single-cell noise while preserving temporal trends. The smoothed
+#' expression is stored as a new assay called "smoothed_expr" in the Monocle3 object.
+#'
+#' @param cellType Character string specifying the cell type to process.
+#' @param trajectory Character string specifying the trajectory name (e.g., "Branch_1").
+#' @param winSizePercent Numeric value between 0 and 1 specifying the smoothing 
+#'   window size as a percentage of total cells. Default is 0.01 (1%).
+#' @param saveResults Logical indicating whether to save the smoothed Monocle3 object.
+#'   Default is TRUE.
+#' @param verbose Logical indicating whether to print progress messages. Default is TRUE.
+#' @param basePath Character string specifying the base project path. If NULL (default),
+#'   uses interactive path initialization.
+#'
+#' @return A Monocle3 CellDataSet object with smoothed expression added as the
+#'   "smoothed_expr" assay.
+#'
+#' @details
+#' The function performs the following steps:
+#' \enumerate{
+#'   \item Loads the Monocle3 object from the specified trajectory directory
+#'   \item Computes pseudotime if not already present
+#'   \item Orders cells by pseudotime and applies moving average smoothing
+#'   \item Stores smoothed values as a new assay called "smoothed_expr"
+#'   \item Saves the updated object to the monocle3Smoothed directory
+#' }
+#'
+#' The moving average window size is calculated as max(5, floor(winSizePercent * nCells))
+#' to ensure a minimum window of 5 cells while scaling with dataset size.
+#'
+#' @examples
+#' \dontrun{
+#' # Basic usage with interactive path selection
+#' cds <- smoothPseudotimeExpression(cellType = "Keratinocyte", 
+#'                                   trajectory = "Branch_1")
+#'
+#' # Custom window size (15% of cells)
+#' cds <- smoothPseudotimeExpression(cellType = "Keratinocyte",
+#'                                   trajectory = "Branch_1", 
+#'                                   winSizePercent = 0.15)
+#'
+#' # Specify custom base path
+#' cds <- smoothPseudotimeExpression(cellType = "Keratinocyte",
+#'                                   trajectory = "Branch_1",
+#'                                   basePath = "/path/to/project")
+#' }
+#'
+#' @seealso
+#' \code{\link{load_monocle_objects}}, \code{\link{save_monocle_objects}},
+#' \code{\link{getCellTypeFilePaths}}, \code{\link{getTrajectoryFilePaths}}
+#'
+#' @export
+smoothPseudotimeExpression <- function(cellType, 
+                                       trajectory, 
+                                       winSizePercent = 0.10, 
+                                       saveResults = TRUE, 
+                                       verbose = TRUE,
+                                       basePath = NULL) {
+  
+  # --- Parameter Validation ---
+  if (missing(cellType) || missing(trajectory)) {
+    stop("Both cellType and trajectory must be specified")
+  }
+  
+  if (winSizePercent <= 0 || winSizePercent > 1) {
+    stop("winSizePercent must be between 0 and 1")
+  }
+  
+  # --- Initialize Paths ---
+  if (is.null(basePath)) {
+    pathInfo <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+    paths <- pathInfo$paths
+  } else {
+    paths <- list(base = basePath)
+  }
+
+  ptPaths <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+  
+  # --- Validate Input Directory ---
+  if (!dir.exists(ptPaths$monocle3)) {
+    stop("Monocle3 directory not found: ", ptPaths$monocle3)
+  }
+  
+  # --- Load Monocle3 Object ---
+  if (verbose) {
+    message("Loading Monocle3 object from: ", ptPaths$monocle3)
+  }
+  
+  cds <- load_monocle_objects(directory_path = ptPaths$monocle3)
+  
+  # --- Ensure Pseudotime is Computed ---
+  if (is.null(colData(cds)$Pseudotime)) {
+    if (verbose) {
+      message("Computing pseudotime")
+    }
+    colData(cds)$Pseudotime <- pseudotime(cds)
+  }
+  
+  # --- Moving Average Smoothing ---
+  cellOrder <- order(colData(cds)$Pseudotime)
+  nCells    <- length(cellOrder)
+  winSize   <- max(5, floor(winSizePercent * nCells))
+  halfWin   <- floor(winSize / 2)
+  exprMat   <- assay(cds, "counts")
+  
+  # Initialize smoothed matrix with same dimensions and names
+  smoothMat <- matrix(0, 
+                      nrow = nrow(exprMat), 
+                      ncol = ncol(exprMat), 
+                      dimnames = dimnames(exprMat))
+  
+  if (verbose) {
+    message("Smoothing expression values with window size: ", winSize, 
+            " (", round(winSizePercent * 100, 1), "% of ", nCells, " cells)")
+  }
+  
+  # Apply moving average smoothing
+  for (i in seq_len(nCells)) {
+    startIdx <- max(1, i - halfWin)
+    endIdx   <- min(nCells, i + halfWin)
+    idx      <- cellOrder[startIdx:endIdx]
+    smoothMat[, cellOrder[i]] <- rowMeans(exprMat[, idx, drop = FALSE])
+  }
+  
+  # Add smoothed expression as new assay
+  assay(cds, "smoothed_expr") <- smoothMat
+  
+  # --- Save Results ---
+  if (saveResults) {
+    if (verbose) {
+      message("Saving smoothed Monocle3 object to: ", ptPaths$monocle3Smoothed)
+    }
+    save_monocle_objects(cds = cds, 
+                         directory_path = ptPaths$monocle3Smoothed, 
+                         comment = cellType)
+  }
+  
+  if (verbose) {
+    message("Smoothing completed successfully!")
+  }
+  
+  # Return the updated CDS object
+  return(cds)
+}
+
 ###############################################################################
 # Standardized Plotting Functions (Option A)
 ###############################################################################

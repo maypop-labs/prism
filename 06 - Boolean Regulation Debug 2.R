@@ -104,7 +104,7 @@ message("Using up to ", config$boolMaxRegulators, " regulators per target.")
 if (!dir.exists(ptPaths$monocle3GeneSwitches)) stop("Missing: ", ptPaths$monocle3GeneSwitches)
 if (!file.exists(ptPaths$grnEdges)) stop("Missing: ", ptPaths$grnEdges)
 cds   <- load_monocle_objects(ptPaths$monocle3GeneSwitches)
-edges <- readRDS(ptPaths$grnEdges)
+edges <- readRDS(ptPaths$grnEdges)  
 
 # =============================================================================
 # SANITIZE ALL GENE NAMES FIRST - BEFORE ANYTHING ELSE

@@ -40,7 +40,7 @@ switchGenes <- readRDS(ptPaths$geneSwitches)
 
 # --- Filter and Normalize Expression Matrix ---
 switchGeneNames <- rownames(switchGenes)
-exprMat         <- assay(cds, "smoothed_expr")
+exprMat         <- assay(cds, "counts")
 keepGenes       <- rowSums(exprMat > 1) >= 10
 exprMat         <- exprMat[keepGenes, ]
 cellInfo        <- data.frame(row.names = colnames(exprMat))
@@ -113,53 +113,8 @@ scenicEdges$corr    <- mapply(getCorrelation, scenicEdges$TF, scenicEdges$Target
 scenicEdges         <- scenicEdges %>% filter(corr > config$grnPositiveThreshold | corr < -config$grnNegativeThreshold)
 scenicEdges$regType <- ifelse(scenicEdges$corr >= 0, "Activation", "Inhibition")
 
-# # --- Add Self-Activating Loops to Orphan Targets ---
-if (config$grnAddSelfActivation) {
- noActivatorTargets <- scenicEdges %>% group_by(Target) %>% summarize(hasActivator = any(regType == "Activation")) %>% filter(!hasActivator) %>% pull(Target)
- if (length(noActivatorTargets) > 0) {
-  selfEdges <- data.frame(
-     TF      = noActivatorTargets,
-     Target  = noActivatorTargets,
-     regType = "Activation",
-     corr    = 1
-   )
-   scenicEdges <- bind_rows(scenicEdges, selfEdges)
-   if (config$verbose) { message("Added self-activation loops for ", length(noActivatorTargets), " orphan targets") }
- }
-}
 # --- Build Graph and Prune ---
 g <- graph_from_data_frame(scenicEdges, directed = TRUE)
-if (config$verbose) { message("Initial network: ", vcount(g), " nodes, ", ecount(g), " edges") }
-
-# --- Save PREPROCESSED network (before post-processing) ---
-if (config$saveResults) {
-  saveGrnOutputSet(
-    graph = g,
-    rdsPath = ptPaths$grnPreprocessed,
-    plotPath = ptPaths$grnPlotPreprocessed,
-    graphmlPath = ptPaths$grnGraphmlPreprocessed,
-    title = "Gene Regulatory Network (Preprocessed)",
-    config = config,
-    verbose = config$verbose
-  )
-}
-
-# Store the preprocessed graph for comparison
-gPreprocessed <- g
-
-if (config$grnRemoveTerminalNodes) {
- terminalNodes <- names(which(degree(g, mode = "out") == 0))
- g <- delete_vertices(g, terminalNodes)
- if (config$verbose) { message("Removed ", length(terminalNodes), " terminal nodes") }
-}
-
-# --- Merge Strongly Connected Components (SCCs) ---
-if (config$grnMergeStronglyConnectedComponents) {
-  comp <- components(g, mode = "strong")
-  gMerged <- contract.vertices(g, comp$membership, vertex.attr.comb = "concat")
-  g <- igraph::simplify(gMerged, remove.loops = TRUE, edge.attr.comb = "first")
-  if (config$verbose) { message("Merged ", max(comp$membership), " strongly connected components") }
-}
 
 # --- Remove isolated nodes ---
 if (config$grnRemoveIsolatedNodes) {
@@ -172,7 +127,7 @@ if (config$grnRemoveIsolatedNodes) {
 
 if (config$verbose) { message("Final network: ", vcount(g), " nodes, ", ecount(g), " edges") }
 
-# --- Save Final Results ---
+# --- Save results ---
 if (config$saveResults) {
   saveGrnOutputSet(
     graph = g,
@@ -183,17 +138,11 @@ if (config$saveResults) {
     config = config,
     verbose = config$verbose
   )
-}
 
-if (config$saveResults) {
-
-  if (config$verbose) { message("Saving preprocessed GRN to: ", ptPaths$grnPreprocessed) }
-  saveRDS(gPreprocessed, file = ptPaths$grnPreprocessed)
-  
-  if (config$verbose) { message("Saving final GRN to: ", ptPaths$grn) }
+  if (config$verbose) { message("Saving GRN RDS file to: ", ptPaths$grn) }
   saveRDS(g, file = ptPaths$grn)
   
-  if (config$verbose) { message("Saving edge list to: ", ptPaths$grnEdges) }
+  if (config$verbose) { message("Saving edge list RDS file to: ", ptPaths$grnEdges) }
   saveRDS(scenicEdges, file = ptPaths$grnEdges)
 
 }

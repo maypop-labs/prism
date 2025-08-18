@@ -100,7 +100,6 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     # Monocle3 directories
     monocle3             = paste0(basePaths$monocle3, "monocle3_", basePrefix, "/"),
     monocle3GeneSwitches = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_geneSwitches/"),
-    monocle3Smoothed     = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_smoothed/"),
 
     # Pseudotime Analysis
     ageVsPseudotimePlot         = paste0(basePaths$plots, basePrefix, "_age_vs_pseudotime.png"),
@@ -111,8 +110,7 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     geneSwitchesTsv = paste0(basePaths$tsv, basePrefix, "_geneSwitches.tsv"),
     grn             = paste0(basePaths$rds, basePrefix, "_GRN.rds"),
     grnEdges        = paste0(basePaths$rds, basePrefix, "_GRN_edges.rds"),
-    grnPreprocessed = paste0(basePaths$rds, basePrefix, "_GRN_preprocessed.rds"),
-    
+
     # Boolean network files
     booleanRules = paste0(basePaths$rds, basePrefix, "_Boolean_Rules.rds"),
     boolnet      = paste0(basePaths$rds, basePrefix, "_boolnet.rds"),
@@ -125,11 +123,9 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     agingScore       = paste0(basePaths$rds, basePrefix, "_aging_score.rds"),
     
     # GraphML exports
-    grnPlot                = paste0(basePaths$plots,   basePrefix, "_GRN.png"),
-    grnPlotPreprocessed    = paste0(basePaths$plots,   basePrefix, "_GRN_preprocessed.png"),
-    grnGraphml             = paste0(basePaths$graphml, basePrefix, "_GRN.graphml"),
-    grnGraphmlPreprocessed = paste0(basePaths$graphml, basePrefix, "_GRN_preprocessed.graphml"),
-    
+    grnPlot    = paste0(basePaths$plots,   basePrefix, "_GRN.png"),
+    grnGraphml = paste0(basePaths$graphml, basePrefix, "_GRN.graphml"),
+
     # Perturbation analysis (these would be generated in loops)
     perturbationResults = paste0(basePaths$rds, basePrefix, "_perturbation_results.rds"),
     rejuvenationTargets = paste0(basePaths$rds, basePrefix, "_rejuvenation_targets.rds")
