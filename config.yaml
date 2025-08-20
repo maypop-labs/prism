@@ -84,7 +84,7 @@ geneSwitchesFDRLevel: 0.05
 geneSwitchesMaxGenes: 100000
 geneSwitchesR2Cutoff: 0.1
 
-# Gene regulatory Network (GRN)
+# Gene regulatory Network (GRN) - Enhanced Configuration
 grnPositiveThreshold: 0.3
 grnNegativeThreshold: 0.3
 grnOnlyPositiveCorr: false
@@ -93,6 +93,22 @@ grnScenicDBs:
   - "hg38__refseq-r80__500bp_up_and_100bp_down_tss.mc9nr.feather"
   - "hg38__refseq-r80__10kb_up_and_down_tss.mc9nr.feather"
 grnScenicSpecies: "hgnc"
+grnCorrWeight: 0.4                    # Weight for correlation score
+grnGenie3Weight: 0.4                  # Weight for GENIE3 importance
+grnMotifWeight: 0.2                   # Weight for motif confidence
+grnHighMotifThreshold: 0.5            # High confidence motif threshold
+grnMediumMotifThreshold: 0.2          # Medium confidence motif threshold
+grnMotifCorrAlignThreshold: 0.1       # Correlation alignment threshold
+grnPriorThreshold: 0.3                # Minimum prior strength to keep weak correlation edges
+grnUse95thPercentile: false           # Use 95th percentile instead of max for normalization
+grnTiePolicy: "consistent"            # Options: "consistent", "zero", "one" 
+grnSignAwareness: true                # Use prior signs in state counting
+grnConsistencyWeight: 0.1             # Weight for sign consistency penalty
+grnEvaluateSignConsistency: true      # Compute sign consistency metrics
+grnSaveEnhancedMetadata: true         # Save all SCENIC metadata
+grnPlotPriorStrength: true            # Show prior strength in plots
+grnValidateWithBlockCV: false         # Use block cross-validation by age
+grnBlockCVFolds: 5                    # Number of age-based folds
 
 # Boolean Rules and BoolNet
 boolMaxRegulators: 4
@@ -102,11 +118,3 @@ boolMinScore: 0.65
 attInitialThreshold: 0.10
 nPerturb: 30
 nSamplesState: 20
-
-
-
-
-
-
-
-
