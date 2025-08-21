@@ -157,12 +157,24 @@ assignMotifAwareSigns <- function(edges, config, verbose = FALSE) {
     )
   
   if (verbose) {
-    signSummary <- edges %>% 
-      count(regType, signConfidence) %>%
-      arrange(regType, signConfidence)
-    
-    message("Sign assignment summary:")
-    print(signSummary)
+    # Handle potential list columns before counting
+    tryCatch({
+      signSummary <- edges %>% 
+        # Ensure columns are vectors, not lists
+        mutate(
+          regType = as.character(regType),
+          signConfidence = as.character(signConfidence)
+        ) %>%
+        count(regType, signConfidence) %>%
+        arrange(regType, signConfidence)
+      
+      message("Sign assignment summary:")
+      print(signSummary)
+    }, error = function(e) {
+      message("Could not generate sign summary: ", e$message)
+      message("regType values: ", paste(unique(edges$regType), collapse = ", "))
+      message("signConfidence values: ", paste(unique(edges$signConfidence), collapse = ", "))
+    })
   }
   
   return(edges)
