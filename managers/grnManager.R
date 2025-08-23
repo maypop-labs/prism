@@ -16,96 +16,120 @@ extractScenicMetadata <- function(scenicOptions, scenicEdges, verbose = FALSE) {
     message("Extracting SCENIC metadata for enhanced edge annotation...")
   }
   
-  # Load SCENIC intermediate results
+  # Extract motif enrichment data
+  if (verbose) message("Loading motifEnrichment...")
   tryCatch({
-    # Extract motif enrichment data
     motifEnrichment <- loadInt(scenicOptions, "motifEnrichment")
-    
-    # Extract regulon target information
-    regulonTargetsInfo <- loadInt(scenicOptions, "regulonTargetsInfo") 
-    
-    # Extract GENIE3 adjacencies with fallback for different SCENIC versions
-    genie3Links <- NULL
-    genie3Keys <- c("genie3ll", "genie3links", "adjacencies")
-    
-    for (key in genie3Keys) {
-      tryCatch({
-        genie3Links <- loadInt(scenicOptions, key)
-        if (!is.null(genie3Links)) {
-          if (verbose) message("Found GENIE3 data with key: ", key)
-          break
-        }
-      }, error = function(e) NULL)
-    }
-    
-    if (is.null(genie3Links)) {
-      warning("No GENIE3 adjacency data found. Tried keys: ", paste(genie3Keys, collapse = ", "))
-      genie3Links <- data.frame(from = character(0), to = character(0), importance = numeric(0))
-    }
-    
-    if (verbose) {
-      message("Found SCENIC metadata: motif enrichment (", nrow(motifEnrichment), 
-              " entries), regulon targets (", nrow(regulonTargetsInfo), " entries)")
-    }
-    
-    # Prepare motif data for merging
-    motifData <- motifEnrichment %>%
-      group_by(TF, target) %>%
-      summarize(
-        motifNES = max(NES, na.rm = TRUE),
-        motifAUC = max(AUC, na.rm = TRUE), 
-        nMotifs = n(),
-        .groups = "drop"
-      ) %>%
-      rename(Target = target)
-    
-    # Prepare GENIE3 importance scores
-    genie3Data <- genie3Links %>%
-      rename(TF = from, Target = to, genie3Importance = importance)
-    
-    # Merge with edge data
-    enhancedEdges <- scenicEdges %>%
-      left_join(motifData, by = c("TF", "Target")) %>%
-      left_join(genie3Data, by = c("TF", "Target")) %>%
-      mutate(
-        # Fill missing values with defaults (explicit handling)
-        motifNES = ifelse(is.na(motifNES) | is.infinite(motifNES), 0, motifNES),
-        motifAUC = ifelse(is.na(motifAUC) | is.infinite(motifAUC), 0, motifAUC),
-        nMotifs = ifelse(is.na(nMotifs), 0, nMotifs),
-        genie3Importance = ifelse(is.na(genie3Importance), 0, genie3Importance),
-        
-        # Compute motif confidence score (explicit 0 for missing)
-        motifConfidence = ifelse(is.na(motifNES), 0, pmax(0, pmin(1, (motifNES - 2.0) / 3.0))),
-        
-        # Compute overall prior strength with safe denominators
-        priorStrength = (
-          0.4 * pmax(0, pmin(1, genie3Importance / pmax(quantile(genie3Importance, 0.95, na.rm = TRUE), 1e-9))) +
-            0.4 * motifConfidence +
-            0.2 * pmax(0, pmin(1, nMotifs / 5))
-        )
-      )
-    
-    if (verbose) {
-      message("Enhanced ", nrow(enhancedEdges), " edges with SCENIC metadata")
-    }
-    
-    return(enhancedEdges)
-    
   }, error = function(e) {
-    warning("Failed to extract SCENIC metadata: ", e$message, 
-            ". Proceeding with basic edge data.")
-    
-    # Return original edges with default columns
-    return(scenicEdges %>%
-             mutate(
-               motifNES = 0,
-               motifAUC = 0,
-               nMotifs = 0,
-               genie3Importance = 0,
-               motifConfidence = 0,
-               priorStrength = 0
-             ))
+    if (verbose) message("Failed to load motifEnrichment: ", e$message)
+    motifEnrichment <<- data.frame(TF = character(0), target = character(0), NES = numeric(0), AUC = numeric(0))
   })
+  
+  # Extract regulon target information
+  if (verbose) message("Loading regulonTargetsInfo...")
+  tryCatch({
+    regulonTargetsInfo <- loadInt(scenicOptions, "regulonTargetsInfo")
+  }, error = function(e) {
+    if (verbose) message("Failed to load regulonTargetsInfo: ", e$message)
+    regulonTargetsInfo <<- data.frame(TF = character(0))
+  }) 
+  
+  # Extract GENIE3 adjacencies with fallback for different SCENIC versions
+  genie3Links <- NULL
+  genie3Keys <- c("genie3ll", "genie3wm", "genie3links", "adjacencies")
+  
+  for (key in genie3Keys) {
+    # Add debugging to see exactly what file path is being tried
+    fileName <- getIntName(scenicOptions, key)
+    if (verbose) message("Attempting to load GENIE3 key '", key, "' from file: ", fileName)
+    if (verbose) message("File exists check: ", file.exists(fileName))
+    
+    tryCatch({
+      genie3Links <- loadInt(scenicOptions, key)
+      if (!is.null(genie3Links)) {
+        if (verbose) message("Found GENIE3 data with key: ", key)
+        
+        # Handle different GENIE3 formats
+        if (key == "genie3wm" && is.matrix(genie3Links)) {
+          # Convert weight matrix to link list format
+          if (verbose) message("Converting GENIE3 weight matrix to link list format")
+          genie3Links <- as.data.frame(as.table(genie3Links))
+          colnames(genie3Links) <- c("from", "to", "importance")
+          # Remove zero-weight edges to reduce size
+          genie3Links <- genie3Links[genie3Links$importance > 0, ]
+        }
+        
+        break
+      }
+    }, error = function(e) {
+      if (verbose) message("Failed to load key '", key, "': ", e$message)
+    })
+  }
+  
+  if (is.null(genie3Links)) {
+    warning("No GENIE3 adjacency data found. Tried keys: ", paste(genie3Keys, collapse = ", "))
+    genie3Links <- data.frame(from = character(0), to = character(0), importance = numeric(0))
+  }
+  
+  if (verbose) {
+    message("Found SCENIC metadata: motif enrichment (", nrow(motifEnrichment), 
+            " entries), regulon targets (", nrow(regulonTargetsInfo), " entries)")
+  }
+  
+  # Prepare motif data for merging
+  motifData <- motifEnrichment %>%
+    group_by(TF, target) %>%
+    summarize(
+      motifNES = max(NES, na.rm = TRUE),
+      motifAUC = max(AUC, na.rm = TRUE), 
+      nMotifs = n(),
+      .groups = "drop"
+    ) %>%
+    rename(Target = target)
+  
+  if (verbose) {
+    message("Processed motif data: ", nrow(motifData), " TF-target pairs, ",
+            "NES range: [", round(min(motifData$motifNES, na.rm = TRUE), 4), ", ",
+            round(max(motifData$motifNES, na.rm = TRUE), 4), "]")
+  }
+  
+  # Prepare GENIE3 importance scores
+  genie3Data <- genie3Links %>%
+    rename(TF = from, Target = to, genie3Importance = importance)
+  
+  if (verbose) {
+    message("GENIE3 data summary: ", nrow(genie3Data), " edges, ",
+            "importance range: [", round(min(genie3Data$genie3Importance, na.rm = TRUE), 4), ", ",
+            round(max(genie3Data$genie3Importance, na.rm = TRUE), 4), "]")
+  }
+  
+  # Merge with edge data
+  enhancedEdges <- scenicEdges %>%
+    left_join(motifData, by = c("TF", "Target")) %>%
+    left_join(genie3Data, by = c("TF", "Target")) %>%
+    mutate(
+      # Fill missing values with defaults (explicit handling)
+      motifNES = ifelse(is.na(motifNES) | is.infinite(motifNES), 0, motifNES),
+      motifAUC = ifelse(is.na(motifAUC) | is.infinite(motifAUC), 0, motifAUC),
+      nMotifs = ifelse(is.na(nMotifs), 0, nMotifs),
+      genie3Importance = ifelse(is.na(genie3Importance), 0, genie3Importance),
+      
+      # Compute motif confidence score (explicit 0 for missing)
+      motifConfidence = ifelse(is.na(motifNES), 0, pmax(0, pmin(1, (motifNES - 2.0) / 3.0))),
+      
+      # Compute overall prior strength with safe denominators
+      priorStrength = (
+        0.4 * pmax(0, pmin(1, genie3Importance / pmax(quantile(genie3Importance, 0.95, na.rm = TRUE), 1e-9))) +
+          0.4 * motifConfidence +
+          0.2 * pmax(0, pmin(1, nMotifs / 5))
+      )
+    )
+  
+  if (verbose) {
+    message("Enhanced ", nrow(enhancedEdges), " edges with SCENIC metadata")
+  }
+  
+  return(enhancedEdges)
 }
 
 #' Assign edge signs using motif-aware approach
@@ -202,11 +226,11 @@ computeCompositeRanking <- function(edges, config, verbose = FALSE) {
   # Normalize scores to [0,1] range
   edges <- edges %>%
     mutate(
-      # Normalize correlation by absolute value
-      corrScore = abs(corr) / max(abs(corr), na.rm = TRUE),
+      # Normalize correlation by absolute value with epsilon protection
+      corrScore = abs(corr) / pmax(max(abs(corr), na.rm = TRUE), 1e-9),
       
-      # Normalize GENIE3 importance 
-      genie3Score = genie3Importance / max(genie3Importance, na.rm = TRUE),
+      # Normalize GENIE3 importance with epsilon protection
+      genie3Score = genie3Importance / pmax(max(genie3Importance, na.rm = TRUE), 1e-9),
       
       # motifConfidence is already [0,1]
       
