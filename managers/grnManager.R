@@ -1,5 +1,5 @@
 # =============================================================================
-# grnManager.R (Enhanced & Cleaned)
+# grnManager.R
 # Functions for creating, visualizing, and saving gene regulatory networks
 # with improved integration of SCENIC/GENIE3 biological priors
 # =============================================================================
@@ -218,16 +218,16 @@ computeCompositeRanking <- function(edges, config, verbose = FALSE) {
       ),
       
       # Compute rank within each target gene (deterministic)
-      regulatorRank = dense_rank(desc(compositeScore))
+      regulatorRank = dplyr::dense_rank(dplyr::desc(compositeScore))
     ) %>%
     group_by(Target) %>%
-    mutate(regulatorRank = dense_rank(desc(compositeScore))) %>%
+    mutate(regulatorRank = dplyr::dense_rank(dplyr::desc(compositeScore))) %>%
     ungroup()
   
   if (verbose) {
     message("Composite scoring completed. Top regulators by composite score:")
     topRegs <- edges %>%
-      arrange(desc(compositeScore)) %>%
+      arrange(dplyr::desc(compositeScore)) %>%
       select(TF, Target, compositeScore, corrScore, genie3Score, motifConfidence) %>%
       head(10)
     print(topRegs)
