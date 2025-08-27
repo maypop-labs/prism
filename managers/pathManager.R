@@ -24,7 +24,8 @@ buildBasePaths <- function(config) {
     tsv        = paste0(rootPath, "results/tsv/"),
     txt        = paste0(rootPath, "results/txt/"),
     monocle3   = paste0(rootPath, "results/monocle3/"),
-    graphml    = paste0(rootPath, "results/graphml/")
+    graphml    = paste0(rootPath, "results/graphml/"),
+    scenic     = paste0(rootPath, "results/scenic/")
   )
 }
 

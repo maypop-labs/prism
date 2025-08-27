@@ -102,6 +102,9 @@ scenicEdges <- purrr::map_dfr(names(regulons), function(tf) {
 scenicEdges <- scenicEdges %>% filter(Target %in% switchGeneNames)
 
 # --- Extract SCENIC Metadata ---
+message("USING grnManager at: ", normalizePath("managers/grnManager.R"))
+try(message("extractScenicMetadata defined at: ", getSrcref(extractScenicMetadata)), silent = TRUE)
+message("config$verbose inside 05 - GRN before extract: ", config$verbose)
 scenicEdges <- extractScenicMetadata(scenicOptions, scenicEdges, config$verbose)
 
 # --- Annotate Edge Sign via Correlation and Filter ---
@@ -119,11 +122,24 @@ scenicEdges$corr <- mapply(getCorrelation, scenicEdges$TF, scenicEdges$Target)
 # --- Filter edges ---
 scenicEdges <- assignMotifAwareSigns(scenicEdges, config, config$verbose)
 scenicEdges <- computeCompositeRanking(scenicEdges, config, config$verbose)
-keepEdges   <- with(scenicEdges, corr > config$grnPositiveThreshold | corr < -config$grnNegativeThreshold | priorStrength > config$grnPriorThreshold)
+
+# Apply filtering with explicit logic
+keepEdges <- with(
+  scenicEdges,
+  (corr >  config$grnPositiveThreshold) |
+  (corr < -config$grnNegativeThreshold) |
+  (priorStrength > config$grnPriorThreshold)
+)
+
+# Validate filtering results
+if (!any(keepEdges)) stop("No edges passed filtering — check thresholds.")
+if (config$verbose) {
+  message("Retained ", sum(keepEdges), " edges after filtering")
+}
+
 scenicEdges <- scenicEdges[keepEdges, ]
 
 if (config$verbose) {
-  message("Retained ", nrow(scenicEdges), " edges after filtering")
   corrOnlyKeep  <- sum(with(scenicEdges, abs(corr) > config$grnPositiveThreshold & priorStrength <= config$grnPriorThreshold))
   priorOnlyKeep <- sum(with(scenicEdges, abs(corr) <= config$grnPositiveThreshold & priorStrength > config$grnPriorThreshold))
   bothKeep      <- sum(with(scenicEdges, abs(corr) > config$grnPositiveThreshold & priorStrength > config$grnPriorThreshold))
@@ -166,8 +182,27 @@ if (config$saveResults) {
 }
 
 # --- Clean up SCENIC temporary folders ---
-scenicFolders <- c("int", "output")
-for (folder in scenicFolders) {
+# First, copy SCENIC outputs to scenic directory for preservation
+if (config$saveResults) {
+  scenicFoldersToPreserve <- c("int", "output", "Step3_RegulonActivity_tSNE_colByActivity")
+  
+  for (folder in scenicFoldersToPreserve) {
+    if (dir.exists(folder)) {
+      destinationPath <- file.path(paths$base$scenic, folder)
+      tryCatch({
+        dir.create(dirname(destinationPath), recursive = TRUE, showWarnings = FALSE)
+        file.copy(folder, dirname(destinationPath), recursive = TRUE)
+        if (config$verbose) { message("Successfully copied SCENIC folder ", folder, " to: ", destinationPath) }
+      }, error = function(e) {
+        if (config$verbose) { warning("Failed to copy folder ", folder, ": ", e$message) }
+      })
+    }
+  }
+}
+
+# Then delete the temporary SCENIC folders
+scenicFoldersToDelete <- c("int", "output", "Step3_RegulonActivity_tSNE_colByActivity")
+for (folder in scenicFoldersToDelete) {
   if (dir.exists(folder)) {
     tryCatch({
       unlink(folder, recursive = TRUE)

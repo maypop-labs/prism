@@ -85,3 +85,11 @@ $RECYCLE.BIN/
 # Bioinformatics: SCENIC
 int/
 output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+
