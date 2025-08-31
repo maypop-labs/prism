@@ -7,13 +7,10 @@
 # =============================================================================
 
 # --- Initialization ---
-source("managers/attractorManager.R")
-source("managers/booleanManager.R")
 source("managers/pathManager.R")
 source("managers/pseudotimeManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-
 config   <- initializeScript()
 pathInfo <- initializeInteractivePaths(needsCellType = TRUE)
 paths    <- pathInfo$paths
@@ -22,10 +19,8 @@ ctPaths  <- getCellTypeFilePaths(paths$base, cellType)
 ensureProjectDirectories(paths)
 clearConsole()
 
-# --- Load Seurat Object ---
-if (!file.exists(ctPaths$seuratObject)) stop("Seurat RDS file not found: ", ctPaths$seuratObject)
-if (config$verbose) { message("Loading Seurat object for cell type: ", cellType) }
-seuratObj <- readRDS(ctPaths$seuratObject)
+# --- Load Data ---
+seuratObj <- loadSeuratByCellType(ctPaths, config)
 
 # --- Convert to Monocle3 CellDataSet ---
 cds <- convertSeuratToCDS(seuratObj)
@@ -84,19 +79,19 @@ for (leaf in leafNodes) {
     retainedLeaves <- c(retainedLeaves, leaf)
 
     if (config$saveResults) {
-      if (config$verbose) { message("Saving trajectory to: ", ptPaths$monocle3) }
-      save_monocle_objects(cds = subCds, directory_path = ptPaths$monocle3, comment = cellType)
+      savePseudotimeTrajectory(subCds, ptPaths, config)
     }
   }
 }
 
-# ---- Post‑processing of branch_stats ---
+# ---- Post‑processing of Branch Statistics ---
 branch_stats <- branch_stats |>
   dplyr::filter(!is.na(corWithAge) & corWithAge >= 0) |>
   dplyr::arrange(dplyr::desc(corWithAge))
 
-# --- save the trajectory report and the trajectory names vector ---
+# --- Save Results ---
 if (config$saveResults) {
+  
   readr::write_tsv(branch_stats, ctPaths$trajectoryCorrelations)
   if (config$verbose) { message("Saved branch statistics report to ", ctPaths$trajectoryCorrelations) }
 
@@ -105,11 +100,10 @@ if (config$saveResults) {
   
 }
 
+# --- Create and Save Plots ---
 if (config$saveResults && length(retainedLeaves) > 0) {
   if (config$verbose) { message("Creating age vs pseudotime plots...") }
-  
-  plotPath <- paths$base$plots
-  
+
   # Create the plots
   trajectoryPlots <- createTrajectoryPlots(
     cds = cds,
@@ -121,7 +115,7 @@ if (config$saveResults && length(retainedLeaves) > 0) {
     saveIndividual = TRUE
   )
   
-  if (config$verbose) { message("Plots saved to: ", plotPath) }
+  if (config$verbose) { message("Plots saved to: ", paths$base$plots) }
 }
 
 if (config$verbose) { message(retained, " valid trajectory branch(es).") }

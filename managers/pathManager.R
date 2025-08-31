@@ -264,3 +264,69 @@ ensureProjectDirectories <- function(paths) {
   
   invisible(TRUE)
 }
+
+# =============================================================================
+# File Loading
+# =============================================================================
+
+loadMergedSeurat <- function(paths, config) {
+  if (!file.exists(paths$static$seuratMerged)) stop("Merged Seurat object not found")
+  if (config$verbose) { message("Loading merged Seurat RDS file") }
+  seuratMerged <- readRDS(paths$static$seuratMerged)
+  return(seuratMerged)
+}
+
+loadPseudotimeTrajectory <- function(ptPaths, config) {
+  if (!dir.exists(ptPaths$monocle3)) stop("Monocle3 object directory not found: ", ptPaths$monocle3)
+  if (config$verbose) { message("Loading pseudotime trajectory") }
+  cds <- load_monocle_objects(directory_path = ptPaths$monocle3)
+  return(cds)
+}
+
+loadSeuratByCellType <- function(ctPaths, config) {
+  if (!file.exists(ctPaths$seuratObject)) stop("Seurat RDS file not found: ", ctPaths$seuratObject)
+  if (config$verbose) { message("Loading Seurat object for cell type") }
+  seuratObj <- readRDS(ctPaths$seuratObject)
+  return(seuratObj)
+}
+
+loadSwitchGenes <- function(ptPaths, config) {
+  if (!file.exists(ptPaths$geneSwitches)) stop("Switch genes RDS file not found: ", ptPaths$geneSwitches)
+  if (config$verbose) { message("Loading switch genes RDS file") }
+  switchGenes <- readRDS(ptPaths$geneSwitches)
+  return(switchGenes)
+}
+
+# =============================================================================
+# File Saving
+# =============================================================================
+
+saveGeneSwitches <- function(switchGenes, ptPaths, config) {
+  if (config$verbose) { message("Saving switch genes to: ", ptPaths$geneSwitches) }
+  saveRDS(switchGenes, file = ptPaths$geneSwitches)
+}
+
+saveGeneSwitchesReport <- function(switchOut, ptPaths, config) {
+  if (config$verbose) { message("Saving switch gene report to: ", ptPaths$geneSwitchesTsv) }
+  write.table(switchOut, file = ptPaths$geneSwitchesTsv, sep = "\t", quote = FALSE, row.names = FALSE)
+}
+
+saveMergedSeurat <- function(seuratMerged, paths, config) {
+  if (config$verbose) { message("Saving merged Seurat RDS file") }
+  saveRDS(seuratMerged, file = paths$static$seuratMerged)
+}
+
+saveMonocle3GeneSwitches <- function(cds, ptPaths, config) {
+  if (config$verbose) { message("Saving GeneSwitches Monocle3 object") }
+  save_monocle_objects(cds = cds, directory_path = ptPaths$monocle3GeneSwitches)
+}
+
+savePseudotimeTrajectory <- function(cds, ptPaths, config) {
+  if (config$verbose) { message("Saving pseudotime trajectory") }
+  save_monocle_objects(cds = cds, directory_path = ptPaths$monocle3)
+}
+
+saveSeuratByCellType <- function(seuratObject, ctPaths, config) {
+  if (config$verbose) { message("Saving Seurat file for cell type") }
+  saveRDS(seuratObject, file = ctPaths$seuratObject)
+}

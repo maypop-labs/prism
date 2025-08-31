@@ -9,13 +9,9 @@
 # =============================================================================
 
 # --- Initialization ---
-source("managers/attractorManager.R")
-source("managers/booleanManager.R")
 source("managers/pathManager.R")
-source("managers/pseudotimeManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-
 config   <- initializeScript()
 pathInfo <- initializeInteractivePaths()
 paths    <- pathInfo$paths
@@ -106,8 +102,7 @@ if (config$saveResults) {
          dpi    = config$figDPI,
          units  = "in")
   
-  if (config$verbose) { message("Saving merged Seurat RDS file") }
-  saveRDS(seuratMerged, file = paths$static$seuratMerged)
+  saveMergedSeurat(seuratMerged, paths, config)
 }
 
 message("Done!")

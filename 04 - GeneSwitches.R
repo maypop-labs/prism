@@ -1,5 +1,5 @@
 # =============================================================================
-# 05 - GeneSwitches
+# 04 - GeneSwitches
 #
 # Perform logistic modeling of gene expression state transitions across
 # pseudotime using the GeneSwitches package on raw data.
@@ -7,13 +7,10 @@
 # =============================================================================
 
 # --- Initialization ---
-source("managers/attractorManager.R")
-source("managers/booleanManager.R")
+source("managers/geneSwitchesManager.R")
 source("managers/pathManager.R")
-source("managers/pseudotimeManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-
 config     <- initializeScript()
 pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
 paths      <- pathInfo$paths
@@ -24,61 +21,93 @@ ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 ensureProjectDirectories(paths)
 clearConsole()
 
-# --- Load raw pseudotime trajectory ---
-if (!dir.exists(ptPaths$monocle3)) stop("Monocle3 object directory not found: ", ptPaths$monocle3)
-if (config$verbose) { message("Loading raw Monocle3 object from: ", ptPaths$monocle3) }
-cds <- load_monocle_objects(directory_path = ptPaths$monocle3)
+# --- Load Data ---
+cds <- loadPseudotimeTrajectory(ptPaths, config)
 
 # --- Prepare Raw Expression for GeneSwitches ---
 if (config$verbose) { message("Preparing raw data for GeneSwitches") }
 colData(cds)$Pseudotime <- pseudotime(cds)
+assay(cds, "expdata")   <- log1p(assay(cds, "counts"))
+expdata <- assay(cds, "expdata")
 
-# Use raw counts instead of smoothed expression
-assay(cds, "expdata") <- log1p(assay(cds, "counts"))
+# --- Optional prefilter: detection, variance, and Spearman vs pseudotime ---
+pt <- colData(cds)$Pseudotime
+detect_frac <- rowMeans(expdata > 0, na.rm = TRUE)
+var_ok      <- apply(expdata, 1, var, na.rm = TRUE) >= config$geneSwitchesVarThreshold
 
-# --- Run GeneSwitches Analysis ---
-if (config$verbose) { message("Binarizing raw expression") }
-cds <- binarize_exp(cds, fix_cutoff = TRUE, binarize_cutoff = config$geneSwitchesBinarizeCutoff)
+if (isTRUE(config$geneSwitchesSpearmanFilter)) {
+  if (config$verbose) message("Prefiltering by |Spearman| ≥ ", config$geneSwitchesRho,
+                              ", detect ≥ ", config$geneSwitchesMinDetect,
+                              ", var ≥ ", config$geneSwitchesVarThreshold)
+  gene_rho <- apply(expdata, 1, function(x) { suppressWarnings(cor(x, pt, method = "spearman", use = "pairwise.complete.obs")) })
+  keep <- (abs(gene_rho) >= config$geneSwitchesRho) & (detect_frac >= config$geneSwitchesMinDetect) & var_ok
+  if (config$verbose) message("Genes kept pre-binarization: ", sum(keep), " / ", nrow(expdata))
+  if (sum(keep) == 0L) {
+    warning("No genes passed the prefilter; disabling it for this run.")
+  } else {
+    cds     <- cds[keep, ]
+    expdata <- assay(cds, "expdata")
+  }
+} else {
+  if (config$verbose) message("Skipping Spearman prefilter; keeping genes by detection & variance only")
+  keep    <- (detect_frac >= config$geneSwitchesMinDetect) & var_ok
+  cds     <- cds[keep, ]
+  expdata <- assay(cds, "expdata")
+}
 
-# Filter out genes with zero variance after binarization
-binary_assay <- assay(cds, "binary")
-gene_variance <- apply(binary_assay, 1, var, na.rm = TRUE)
-variable_genes <- rownames(cds)[gene_variance > 0]
-cds <- cds[variable_genes, ]
+# =============================================================================
+# --- Core GeneSwitches Pipeline with safety net ---
+if (isTRUE(config$geneSwitchesFixedCutoff)) {
 
-if (config$verbose) { message("Retained ", length(variable_genes), " genes with binary variation") }
+  # Fixed cutoff path
+  if (config$verbose) { message("Running GeneSwitches Pipeline (fixed cutoff = ", config$geneSwitchesCutOff, ")") }
+  cds <- binarize_exp(cds, fix_cutoff = TRUE, binarize_cutoff = config$geneSwitchesCutOff, ncores = config$cores)
 
-if (config$verbose) { message("Fitting logistic models on raw data") }
-cds <- find_switch_logistic_fastglm(cds, downsample = TRUE, show_warning = TRUE)
+} else {
+  
+  # Mixture model path (with fallback)
+  if (config$verbose) message("Running GeneSwitches Pipeline (mixture model)")
+  # Make sure expdata is a numeric matrix
+  exp <- assay(cds, "expdata")
+  if (!is.matrix(exp)) exp <- as.matrix(exp)
+  storage.mode(exp) <- "double"
+  exp[!is.finite(exp)] <- 0
+  assay(cds, "expdata") <- exp
+  cds <- tryCatch(
+    { binarize_exp(cds, fix_cutoff = FALSE, ncores = config$cores) },
+    error = function(e) {
+      warning("Mixture binarization failed: ", conditionMessage(e), " — falling back to fixed cutoff.")
+      binarize_exp(cds, fix_cutoff = TRUE, binarize_cutoff = config$geneSwitchesCutOff, ncores = config$cores)
+    }
+  )
+}
 
-if (config$verbose) { message("Filtering top switch genes") }
-switchGenes <- filter_switchgenes(cds, 
-                                  allgenes = TRUE, 
-                                  topnum = config$geneSwitchesMaxGenes, 
-                                  r2cutoff = config$geneSwitchesR2Cutoff)
+# Fit logistic models (use correct arg name; avoid downsampling in sparse data)
+cds <- find_switch_logistic_fastglm(cds, downsample = FALSE, show_warnings = TRUE)
 
-# --- Summarize switch genes for export ---
-switchDf <- as.data.frame(switchGenes, stringsAsFactors = FALSE)
+# Filter/collect switch genes (lenient; all genes considered)
+switchGenes <- filter_switchgenes(cds, allgenes = TRUE)
+
+# =============================================================================
+
+# --- Summarize Switch Genes for Export ---
+switchDf  <- as.data.frame(switchGenes, stringsAsFactors = FALSE)
 switchOut <- data.frame(
-  geneId    = switchDf$geneID,
-  direction = switchDf$direction,
-  fdr       = switchDf$FDR,
+  geneId           = switchDf$geneID,
+  direction        = switchDf$direction,
+  fdr              = switchDf$FDR,
+  pseudotime       = switchDf$switch_at_time,
+  pseudoR2s        = switchDf$pseudoR2s,
   stringsAsFactors = FALSE
 )
-
 switchOut <- subset(switchOut, !is.na(fdr))
 switchOut <- switchOut[order(switchOut$fdr, switchOut$geneId, na.last = TRUE), ]
 
 # --- Save Results ---
 if (config$saveResults) {
-  if (config$verbose) { message("Saving GeneSwitches Monocle3 object to: ", ptPaths$monocle3GeneSwitches) }
-  save_monocle_objects(cds = cds, directory_path = ptPaths$monocle3GeneSwitches, comment = cellType)
-  
-  if (config$verbose) { message("Saving switch genes to: ", ptPaths$geneSwitches) }
-  saveRDS(switchGenes, file = ptPaths$geneSwitches)
-  
-  if (config$verbose) { message("Saving switch gene report to: ", ptPaths$geneSwitchesTsv) }
-  write.table(switchOut, file = ptPaths$geneSwitchesTsv, sep = "\t", quote = FALSE, row.names = FALSE)
+  saveMonocle3GeneSwitches(cds, ptPaths, config)
+  saveGeneSwitches(switchGenes, ptPaths, config)
+  saveGeneSwitchesReport(switchOut, ptPaths, config)
 }
 
 if (config$verbose) { message("Number of switch genes: ", nrow(switchOut)) }
