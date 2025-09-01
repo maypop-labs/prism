@@ -102,6 +102,9 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     monocle3             = paste0(basePaths$monocle3, "monocle3_", basePrefix, "/"),
     monocle3GeneSwitches = paste0(basePaths$monocle3, "monocle3_", basePrefix, "_geneSwitches/"),
 
+    # SCENIC directory
+    scenic = paste0(basePaths$scenic, basePrefix, "/"),
+
     # Pseudotime Analysis
     ageVsPseudotimePlot         = paste0(basePaths$plots, basePrefix, "_age_vs_pseudotime.png"),
     ageVsPseudotimeCombinedPlot = paste0(basePaths$plots, basePrefix, "_age_vs_pseudotime_combined.png"),
@@ -111,6 +114,7 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     geneSwitchesTsv = paste0(basePaths$tsv, basePrefix, "_geneSwitches.tsv"),
     grn             = paste0(basePaths$rds, basePrefix, "_GRN.rds"),
     grnEdges        = paste0(basePaths$rds, basePrefix, "_GRN_edges.rds"),
+    grnEdgesTsv     = paste0(basePaths$tsv, basePrefix, "_GRN_edges.tsv"),
 
     # Boolean network files
     booleanRules = paste0(basePaths$rds, basePrefix, "_Boolean_Rules.rds"),
@@ -254,10 +258,10 @@ ensureProjectDirectories <- function(paths) {
     dir.create(path, recursive = TRUE, showWarnings = FALSE)
   })
   
-  # Create monocle3 directories if they exist in the path structure
+  # Create trajectory-specific directories if they exist in the path structure
   if ("trajectory" %in% names(paths)) {
-    monocle3Dirs <- paths$trajectory[grepl("monocle3", names(paths$trajectory))]
-    lapply(monocle3Dirs, function(path) {
+    trajectoryDirs <- paths$trajectory[grepl("monocle3|scenic", names(paths$trajectory))]
+    lapply(trajectoryDirs, function(path) {
       dir.create(path, recursive = TRUE, showWarnings = FALSE)
     })
   }

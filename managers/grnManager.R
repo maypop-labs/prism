@@ -164,20 +164,23 @@ extractScenicMetadata <- function(scenicOptions, edges, verbose = TRUE) {
   }
   
   rti <- readRDS(rtiFile)
+  rti <- as.data.frame(rti)  # Convert data.table to data.frame to avoid merge conflicts
+
+  # Rename gene column to Target for consistency BEFORE selecting columns
+  if ("gene" %in% names(rti)) {
+    names(rti)[names(rti) == "gene"] <- "Target"
+  }
 
   # Select essential columns
-  essentialCols <- c("TF", "gene", "NES", "nMotifs", "highConfAnnot", "bestMotif")
+  essentialCols <- c("TF", "Target", "NES", "nMotifs", "highConfAnnot", "bestMotif")
   availableCols <- intersect(essentialCols, names(rti))
   
-  if (!"TF" %in% availableCols || !"gene" %in% availableCols) {
-    warning("Required TF/gene columns missing from regulonTargetsInfo")
+  if (!"TF" %in% availableCols || !"Target" %in% availableCols) {
+    warning("Required TF/Target columns missing from regulonTargetsInfo")
     edges$hasMotif <- FALSE
     edges$motifConfidence <- 0
     return(edges)
   }
-  
-  # Rename gene column to Target for consistency
-  names(rti)[names(rti) == "gene"] <- "Target"
   
   # Keep highest NES per TF-Target pair if duplicates exist
   if ("NES" %in% names(rti)) {
@@ -189,6 +192,14 @@ extractScenicMetadata <- function(scenicOptions, edges, verbose = TRUE) {
   
   # Merge with edges
   result <- merge(edges, rti[availableCols], by = c("TF", "Target"), all.x = TRUE)
+  
+  # After merge, ensure numeric columns are actually numeric
+  if ("NES" %in% names(result)) {
+    result$NES <- as.numeric(result$NES)
+  }
+  if ("nMotifs" %in% names(result)) {
+    result$nMotifs <- as.numeric(result$nMotifs)
+  }
   
   # Create derived motif columns
   result$hasMotif <- FALSE
@@ -321,7 +332,7 @@ computeCompositeRanking <- function(edges, config, verbose = FALSE) {
   # Rank by target gene
   edges <- edges %>%
     group_by(Target) %>%
-    mutate(regulatorRank = dense_rank(desc(compositeScore))) %>%
+    mutate(regulatorRank = dense_rank(dplyr::desc(compositeScore))) %>%
     ungroup()
   
   if (verbose) {
@@ -533,7 +544,7 @@ saveEnhancedGrnOutputSet <- function(graph, edges, rdsPath, plotPath, graphmlPat
     if (verbose) message("  Note: Missing columns in export: ", paste(missingCols, collapse = ", "))
   }
   
-  write.csv(edges[availableCols], file = edgesPath, row.names = FALSE)
+  write.table(edges[availableCols], file = edgesPath, sep = "\t", row.names = FALSE, quote = FALSE)
   
   # Save plot
   if (verbose) message("  Creating plot...")
@@ -554,9 +565,8 @@ saveEnhancedGrnOutputSet <- function(graph, edges, rdsPath, plotPath, graphmlPat
     message("Completed saving GRN output set with ", length(availableCols), " edge attributes")
   }
   
-# =============================================================================
-# PIPELINE ORCHESTRATION FUNCTIONS  
-# =============================================================================
+  invisible(savedFiles)
+}
 
 # ----------------------------------------------------------------------
 # buildEnhancedGrn
@@ -720,7 +730,7 @@ filterAndFinalizeGrn <- function(edges, config) {
     # High-quality switch genes get priority (handle NAs)
     highQualityTarget <- FALSE
     if ("targetPseudoR2" %in% names(edges)) {
-      highQualityTarget <- (!is.na(targetPseudoR2)) & (targetPseudoR2 > 0.1)
+      highQualityTarget <- (!is.na(targetPseudoR2)) & (targetPseudoR2 > config$grnSwitchQualityThreshold)
     }
     
     # Keep edges that meet any of these criteria
@@ -892,15 +902,15 @@ runScenicScoring <- function(scenicOptions, exprMatLog, config) {
 #' Save GRN outputs and perform cleanup
 #'
 #' Coordinates saving of all GRN outputs including RDS, plots, GraphML,
-#' and CSV files. Optionally preserves SCENIC intermediate files for
+#' and TSV files. Optionally preserves SCENIC intermediate files for
 #' debugging or future analysis.
 #'
 #' @param grn List containing final igraph object and edges data frame
-#' @param paths Path structure with output directories
+#' @param ptPaths Trajectory-specific paths from getTrajectoryFilePaths
 #' @param config Configuration object with save settings
 #' @return GRN object (invisibly)
 #' @export
-saveGrnOutputs <- function(grn, paths, config) {
+saveGrnOutputs <- function(grn, ptPaths, config) {
   if (config$verbose) message("Phase 5: Saving outputs and cleaning up")
   
   if (!config$saveResults) {
@@ -908,11 +918,11 @@ saveGrnOutputs <- function(grn, paths, config) {
     return(invisible(grn))
   }
   
-  # Create output paths
-  rdsPath <- file.path(paths$base$rds, "grn.rds")
-  plotPath <- file.path(paths$base$plots, "grn.png")
-  graphmlPath <- file.path(paths$base$graphml, "grn.graphml")
-  edgesPath <- file.path(paths$base$tsv, "grn_edges.csv")
+  # Use trajectory-specific output paths
+  rdsPath <- ptPaths$grnEdges
+  plotPath <- ptPaths$grnPlot
+  graphmlPath <- ptPaths$grnGraphml
+  edgesPath <- ptPaths$grnEdgesTsv
   
   # Save complete output set
   saveEnhancedGrnOutputSet(
@@ -928,15 +938,27 @@ saveGrnOutputs <- function(grn, paths, config) {
   )
   
   # Optional: preserve key SCENIC intermediate files
-  if (config$grnPreserveIntermediates && dir.exists("int")) {
-    scenicPreservePath <- file.path(paths$base$scenic, "int")
-    if (!dir.exists(dirname(scenicPreservePath))) {
-      dir.create(dirname(scenicPreservePath), recursive = TRUE)
-    }
-    
+  if (config$grnPreserveIntermediates) {
     tryCatch({
-      file.copy("int", dirname(scenicPreservePath), recursive = TRUE)
-      if (config$verbose) message("Preserved SCENIC intermediate files")
+      if (dir.exists("int")) {
+        file.copy("int", ptPaths$scenic, recursive = TRUE)
+      }
+      if (dir.exists("output")) {
+        file.copy("output", ptPaths$scenic, recursive = TRUE)
+      }
+      if (config$verbose) message("Preserved SCENIC files to: ", ptPaths$scenic)
+      
+      # Clean up original folders after successful preservation
+      if (config$grnCleanupAfterPreservation) {
+        if (dir.exists("int")) {
+          unlink("int", recursive = TRUE)
+          if (config$verbose) message("Cleaned up original int/ folder")
+        }
+        if (dir.exists("output")) {
+          unlink("output", recursive = TRUE)
+          if (config$verbose) message("Cleaned up original output/ folder")
+        }
+      }
     }, error = function(e) {
       warning("Could not preserve SCENIC files: ", e$message)
     })

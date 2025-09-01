@@ -87,9 +87,9 @@ geneSwitchesSpearmanFilter: TRUE    # turn Spearman prefilter on/off
 geneSwitchesFixedCutoff: FALSE      # turn on/off global fixed cutoff
 
 # Gene regulatory Network (GRN)
-grnFromScratch: TRUE
-grnPositiveThreshold: 0.3
-grnNegativeThreshold: 0.3
+grnFromScratch: FALSE
+grnPositiveThreshold: 0.4
+grnNegativeThreshold: 0.4
 grnOnlyPositiveCorr: FALSE
 grnRemoveIsolatedNodes: TRUE
 grnScenicDBs:
@@ -103,9 +103,9 @@ grnHighMotifThreshold: 0.5            # High confidence motif threshold
 grnMediumMotifThreshold: 0.2          # Medium confidence motif threshold
 grnMotifCorrAlignThreshold: 0.1       # Correlation alignment threshold
 grnPriorThreshold: 0.3                # Minimum prior strength to keep weak correlation edges
-grnTemporalPriorWeight: 0.1           # Weight for temporal consistency
 grnSwitchQualityThreshold: 0.1        # Minimum pseudoR² for switch genes
 grnPreserveIntermediates: TRUE        # Keep SCENIC intermediate files
+grnCleanupAfterPreservation: TRUE     # Delete original int/ and output/ after preservation
 
 # Boolean Rules and BoolNet
 boolMaxRegulators: 4

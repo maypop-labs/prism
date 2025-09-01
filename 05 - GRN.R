@@ -53,7 +53,7 @@ tryCatch({
   finalGrn <- filterAndFinalizeGrn(enhancedEdges, config)
   
   # Phase 5: Output and cleanup
-  saveGrnOutputs(finalGrn, paths, config)
+  saveGrnOutputs(finalGrn, ptPaths, config)
   
   if (config$verbose) message("GRN construction completed successfully!")
   
