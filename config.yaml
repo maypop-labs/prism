@@ -58,7 +58,7 @@ figDPI: 300
 figHeight: 5
 figWidth: 6.5
 hjust: 0.5
-networkLayout: "fr"
+networkLayout: "lgl"
 plotAlpha: 0.75
 pointSize: 1.5
 strokeSize: 0.33

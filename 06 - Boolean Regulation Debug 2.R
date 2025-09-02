@@ -1,5 +1,5 @@
 # =============================================================================
-# 07 - Boolean Regulation Debug (FIXED: Proper Gene Name Sanitization)
+# 06 - Boolean Regulation Debug (FIXED: Proper Gene Name Sanitization)
 # Purpose: Infer Boolean rules with consistent sanitized gene names throughout
 # =============================================================================
 

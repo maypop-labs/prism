@@ -1,6 +1,8 @@
 # =============================================================================
 # 05 - GRN.R (New Modular Version)
 # Build gene regulatory network with SCENIC/GENIE3, enhanced with GeneSwitches
+#
+# Note: Possible > 14-hour runtime for new pseudotime trajectories.
 # =============================================================================
 
 # --- Initialization ---
@@ -19,6 +21,30 @@ ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
 ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 ensureProjectDirectories(paths)
 clearConsole()
+
+# --- SCENIC Recovery Logic ---
+if (!config$grnFromScratch) {
+  # Check if int and output exist locally
+  localIntExists <- dir.exists("int")
+  localOutputExists <- dir.exists("output")
+  
+  if (!localIntExists || !localOutputExists) {
+    # Check if they exist in trajectory-specific scenic folder
+    scenicIntPath <- file.path(ptPaths$scenic, "int")
+    scenicOutputPath <- file.path(ptPaths$scenic, "output")
+    
+    if (dir.exists(scenicIntPath) || dir.exists(scenicOutputPath)) {
+      # Copy from scenic folder to local
+      if (dir.exists(scenicIntPath) && !localIntExists) {
+        file.copy(scenicIntPath, ".", recursive = TRUE)
+      }
+      if (dir.exists(scenicOutputPath) && !localOutputExists) {
+        file.copy(scenicOutputPath, ".", recursive = TRUE)
+      }
+      if (config$verbose) message("Restored SCENIC files from previous run")
+    }
+  }
+}
 
 # --- Load Data ---
 if (config$verbose) message("Loading trajectory and switch gene data...")

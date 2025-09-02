@@ -378,7 +378,7 @@ createAndSaveGrnPlot <- function(graph, plotPath, title = "Gene Regulatory Netwo
   }
   
   if (verbose) {
-    message("Creating GRN plot with ", igraph::vcount(graph), " nodes and ", igraph::ecount(graph), " edges")
+    message("Creating enhanced GRN plot with ", igraph::vcount(graph), " nodes and ", igraph::ecount(graph), " edges")
   }
   
   # Add edge attributes if available
@@ -397,30 +397,52 @@ createAndSaveGrnPlot <- function(graph, plotPath, title = "Gene Regulatory Netwo
     }
   }
   
-  # Create plot
+  # Create enhanced plot with curved edges and improved styling
   grnPlot <- ggraph::ggraph(graph, layout = config$networkLayout) +
     {
       if (igraph::ecount(graph) > 0) {
         if ("regType" %in% igraph::edge_attr_names(graph)) {
-          ggraph::geom_edge_link(aes(colour = regType), alpha = config$plotAlpha,
-                                 arrow = grid::arrow(length = grid::unit(3, "mm")))
+          ggraph::geom_edge_arc(aes(colour = regType), 
+                               start_cap = ggraph::circle(0, 'mm'),
+                               end_cap = ggraph::circle(6, 'mm'),
+                               alpha = 1.0,
+                               width = 1.2,
+                               curvature = 0.2,
+                               arrow = grid::arrow(length = grid::unit(4, "mm"), 
+                                                  type = "closed"))
         } else {
-          ggraph::geom_edge_link(alpha = config$plotAlpha,
-                                 arrow = grid::arrow(length = grid::unit(3, "mm")))
+          ggraph::geom_edge_arc(alpha = 1.0,
+                               start_cap = ggraph::circle(0, 'mm'),
+                               end_cap = ggraph::circle(6, 'mm'),
+                               width = 1.2,
+                               curvature = 0.2,
+                               arrow = grid::arrow(length = grid::unit(4, "mm")))
         }
       } else {
-        ggraph::geom_edge_link(alpha = config$plotAlpha)
+        ggraph::geom_edge_arc(alpha = 1.0)
       }
     } +
-    ggraph::geom_node_point(size = config$pointSize, color = "steelblue") +
-    ggraph::geom_node_text(aes(label = name), size = 3, repel = TRUE) +
+    ggraph::geom_node_point(size = 8, 
+                           color = "black",
+                           stroke = 1.5,
+                           shape = 21,
+                           fill = "lightblue") +
+    ggraph::geom_node_text(aes(label = name), 
+                          size = 3.5, 
+                          repel = TRUE,
+                          point.padding = 1.2,
+                          box.padding = 0.8,
+                          force = 5,
+                          max.overlaps = Inf) +
     ggraph::scale_edge_colour_manual(values = c("Activation" = "darkgreen", 
-                                                "Inhibition" = "darkred")) +
+                                               "Inhibition" = "darkred"),
+                                     guide = "none") +
     ggplot2::ggtitle(title) +
+    ggplot2::expand_limits(x = c(-1.5, 1.5), y = c(-1.5, 1.5)) +
     ggraph::theme_graph()
   
   # Save plot
-  if (verbose) message("Saving GRN plot to: ", plotPath)
+  if (verbose) message("Saving enhanced GRN plot to: ", plotPath)
   
   ggplot2::ggsave(
     filename = plotPath,
@@ -932,7 +954,7 @@ saveGrnOutputs <- function(grn, ptPaths, config) {
     plotPath = plotPath,
     graphmlPath = graphmlPath,
     edgesPath = edgesPath,
-    title = "Enhanced Gene Regulatory Network",
+    title = "Gene Regulatory Network (GRN)",
     config = config,
     verbose = config$verbose
   )
