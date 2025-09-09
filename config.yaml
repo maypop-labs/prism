@@ -108,8 +108,18 @@ grnPreserveIntermediates: TRUE        # Keep SCENIC intermediate files
 grnCleanupAfterPreservation: TRUE     # Delete original int/ and output/ after preservation
 
 # Boolean Rules and BoolNet
+boolCheckpointInterval: 25
+boolKValue: 0
 boolMaxRegulators: 4
-boolMinScore: 0.65
+boolMinScore: 0.05
+boolMinStates: 10
+boolExhaustiveLimit: 20
+boolMaxSamples: 1000
+boolWeights:
+  correlation: 1.0
+  motif_confidence: 0.3
+  scenic_importance: 0.2
+  prior_knowledge: 0.1
 
 # Attractor Analysis
 attInitialThreshold: 0.10

@@ -941,22 +941,22 @@ saveGrnOutputs <- function(grn, ptPaths, config) {
   }
   
   # Use trajectory-specific output paths
-  rdsPath <- ptPaths$grnEdges
-  plotPath <- ptPaths$grnPlot
+  rdsPath     <- ptPaths$grnEdges
+  plotPath    <- ptPaths$grnPlot
   graphmlPath <- ptPaths$grnGraphml
-  edgesPath <- ptPaths$grnEdgesTsv
+  edgesPath   <- ptPaths$grnEdgesTsv
   
   # Save complete output set
   saveEnhancedGrnOutputSet(
-    graph = grn$graph,
-    edges = grn$edges, 
-    rdsPath = rdsPath,
-    plotPath = plotPath,
+    graph       = grn$graph,
+    edges       = grn$edges, 
+    rdsPath     = rdsPath,
+    plotPath    = plotPath,
     graphmlPath = graphmlPath,
-    edgesPath = edgesPath,
-    title = "Gene Regulatory Network (GRN)",
-    config = config,
-    verbose = config$verbose
+    edgesPath   = edgesPath,
+    title       = "Gene Regulatory Network (GRN)",
+    config      = config,
+    verbose     = config$verbose
   )
   
   # Optional: preserve key SCENIC intermediate files

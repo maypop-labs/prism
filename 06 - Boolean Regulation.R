@@ -1,41 +1,20 @@
 # =============================================================================
-# 06 - Boolean Regulation (Production Version)
-# Purpose: Generate production-quality Boolean rules using k=0 + SCENIC data
+# 06 - Boolean Regulation
+# Purpose: Generate production-quality Boolean rules using `i + k` + SCENIC data
 # =============================================================================
 
 # Core Philosophy: 
-# - k = 0 only (same pseudotime, maximum statistical power)
 # - Leverage all SCENIC/GENIE3 information (regType, motif confidence, correlation)
 # - Multi-method approach (empirical + template + fallback)
-# - Bulletproof error handling and resumable execution
+# - Error handling and resumable execution
 # - BoolNet-ready output with comprehensive validation
 
-source("managers/attractorManager.R")
 source("managers/booleanManager.R")
 source("managers/booleanReportManager.R")
 source("managers/pathManager.R")
-source("managers/pseudotimeManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-
-library(BoolNet)
-library(dplyr)
-library(Matrix)
-
-# --- CONFIGURATION ---
-config <- initializeScript()
-config$boolMaxRegulators <- 3
-config$boolMinScore <- 0.05
-config$boolMinStates <- 10
-config$kValue <- 0  # Fixed at 0 for production
-config$checkpointInterval <- 25
-config$weightsConfig <- list(
-  correlation = 1.0,
-  motif_confidence = 0.3,
-  scenic_importance = 0.2,
-  prior_knowledge = 0.1
-)
-
+config     <- initializeScript()
 pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
 paths      <- pathInfo$paths
 cellType   <- pathInfo$cellType
@@ -46,17 +25,17 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- STAGE 1: Robust Data Loading and Validation ---
-message("=== STAGE 1: Loading and validating data ===")
-
-if (!dir.exists(ptPaths$monocle3GeneSwitches)) {
-  stop("Monocle3 object directory not found: ", ptPaths$monocle3GeneSwitches)
-}
-if (!file.exists(ptPaths$grnEdges)) {
-  stop("Edges RDS file not found: ", ptPaths$grnEdges)
-}
-
-cds   <- load_monocle_objects(directory_path = ptPaths$monocle3GeneSwitches)
+cds   <- loadMonocle3GeneSwitches(ptPaths, config)
 edges <- readRDS(ptPaths$grnEdges)
+
+# Convert igraph object to data frame if necessary
+if (inherits(edges, "igraph")) {
+  library(igraph)
+  edges <- igraph::as_data_frame(edges, what = "edges")
+  # Rename igraph columns to expected format
+  names(edges)[names(edges) == "from"] <- "TF"
+  names(edges)[names(edges) == "to"] <- "Target"
+}
 
 # Validate SCENIC metadata columns
 required_cols <- c("TF", "Target", "corr")
@@ -128,10 +107,9 @@ message("  - Valid edges: ", nrow(edges), " regulatory relationships")
 message("=== STAGE 3: Preparing binary expression data and pseudotime ordering ===")
 
 cellOrder <- order(colData(cds)$Pseudotime)
-kStep <- 0  # Fixed at k=0 for production
 
 message("Configuration:")
-message("  - Using k = ", kStep, " (same pseudotime analysis)")
+message("  - Using k = ", config$boolKValue)
 message("  - Cell ordering: ", length(cellOrder), " cells ordered by pseudotime")
 message("  - Max regulators per gene: ", config$boolMaxRegulators)
 message("  - Minimum rule score: ", config$boolMinScore)
@@ -190,7 +168,7 @@ for (i in seq_along(targets)) {
     }
     
     # Checkpoint every N genes
-    if (i %% config$checkpointInterval == 0) {
+    if (i %% config$boolCheckpointInterval == 0) {
       completed_genes <- c(completed_genes, names(boolRules))
       saveRDS(list(rules = boolRules, completed = unique(completed_genes)), checkpoint_file)
       message("\nCheckpoint saved at gene ", i, "/", length(targets))
@@ -262,13 +240,8 @@ if (config$saveResults) {
   message("=== STAGE 7: Saving results and generating reports ===")
   
   # Save main results
-  saveRDS(boolRules, file = ptPaths$booleanRules)
-  message("Boolean rules saved to: ", ptPaths$booleanRules)
-  
-  # Save gene name mapping
-  mappingFile <- file.path(paths$base$rds, paste0(cellType, "_", trajectory, "_gene_mapping.rds"))
-  saveRDS(geneMap, file = mappingFile)
-  message("Gene name mapping saved to: ", mappingFile)
+  saveBooleanRules(boolRules, ptPaths, config)
+  saveGeneMap(geneMap, ptPaths, config)
   
   # Generate comprehensive output tables
   message("Generating output tables...")
@@ -318,23 +291,6 @@ if (config$saveResults) {
   flatFile <- paste0(paths$base$tsv, cellType, "_", trajectory, "_boolean_rules.tsv")
   write.table(rulesFlat, flatFile, sep = "\t", row.names = FALSE, quote = FALSE)
   
-  # Gene sanitization summary
-  sanitizationSummary <- data.frame(
-    OriginalName = geneMap$OriginalName,
-    SanitizedName = geneMap$SanitizedName,
-    Changed = geneMap$OriginalName != geneMap$SanitizedName,
-    stringsAsFactors = FALSE
-  )
-  
-  sanitFile <- paste0(paths$base$tsv, cellType, "_", trajectory, "_gene_sanitization.tsv")
-  write.table(sanitizationSummary, sanitFile, sep = "\t", row.names = FALSE, quote = FALSE)
-  
-  message("Output tables saved:")
-  message("  - Analysis table: ", basename(analysisFile))
-  message("  - Flat rules table: ", basename(flatFile))
-  message("  - Sanitization summary: ", basename(sanitFile))
-  message("  - Genes sanitized: ", sum(sanitizationSummary$Changed))
-  
   # Generate enhanced report with SCENIC integration
   tryCatch({
     generateBooleanRuleReport(boolRules, edges, paths, cellType, trajectory, config)
@@ -364,5 +320,5 @@ message("  - High quality (≥0.75): ", sum(sapply(boolRules, function(x) x$scor
 message("  - Excellent quality (≥0.9): ", sum(sapply(boolRules, function(x) x$score %||% 0) >= 0.9), 
         "/", length(boolRules))
 message("")
-message("Ready for attractor analysis and perturbation experiments!")
 message(paste(rep("=", 60), collapse = ""))
+message("Done!")

@@ -110,6 +110,7 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     ageVsPseudotimeCombinedPlot = paste0(basePaths$plots, basePrefix, "_age_vs_pseudotime_combined.png"),
     
     # Analysis intermediate files
+    geneMap         = paste0(basePaths$rds, basePrefix, "_gene_mapping.rds"),
     geneSwitches    = paste0(basePaths$rds, basePrefix, "_geneSwitches.rds"),
     geneSwitchesTsv = paste0(basePaths$tsv, basePrefix, "_geneSwitches.tsv"),
     grn             = paste0(basePaths$rds, basePrefix, "_GRN.rds"),
@@ -118,10 +119,11 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
 
     # Boolean network files
     booleanRules = paste0(basePaths$rds, basePrefix, "_Boolean_Rules.rds"),
-    boolnet      = paste0(basePaths$rds, basePrefix, "_boolnet.rds"),
+    boolNet      = paste0(basePaths$rds, basePrefix, "_boolNet.rds"),
     attractors   = paste0(basePaths$rds, basePrefix, "_attractors.rds"),
     attractorDf  = paste0(basePaths$rds, basePrefix, "_attractor_df.rds"),
     geneMap      = paste0(basePaths$rds, basePrefix, "_gene_map.rds"),
+    boolNetTsv   = paste0(basePaths$tsv, basePrefix, "_boolNet_analysis.tsv"),
     
     # Attractor analysis files
     attractorEntropy = paste0(basePaths$rds, basePrefix, "_attractor_entropy.rds"),
@@ -273,6 +275,13 @@ ensureProjectDirectories <- function(paths) {
 # File Loading
 # =============================================================================
 
+loadBooleanRules <- function(ptPaths, config) {
+  if (!file.exists(ptPaths$booleanRules)) stop("Boolean rules RDS file not found: ", ptPaths$booleanRules)
+  if (config$verbose) { message("Loading Boolean rules RDS file") }
+  booleanRules <- readRDS(ptPaths$booleanRules)
+  return(booleanRules)  
+}
+
 loadMergedSeurat <- function(paths, config) {
   if (!file.exists(paths$static$seuratMerged)) stop("Merged Seurat object not found")
   if (config$verbose) { message("Loading merged Seurat RDS file") }
@@ -284,6 +293,13 @@ loadPseudotimeTrajectory <- function(ptPaths, config) {
   if (!dir.exists(ptPaths$monocle3)) stop("Monocle3 object directory not found: ", ptPaths$monocle3)
   if (config$verbose) { message("Loading pseudotime trajectory") }
   cds <- load_monocle_objects(directory_path = ptPaths$monocle3)
+  return(cds)
+}
+
+loadMonocle3GeneSwitches <- function(ptPaths, config) {
+  if (!dir.exists(ptPaths$monocle3)) stop("Monocle3 object directory not found: ", ptPaths$monocle3GeneSwitches)
+  if (config$verbose) { message("Loading pseudotime trajectory") }
+  cds <- load_monocle_objects(directory_path = ptPaths$monocle3GeneSwitches)
   return(cds)
 }
 
@@ -304,6 +320,31 @@ loadSwitchGenes <- function(ptPaths, config) {
 # =============================================================================
 # File Saving
 # =============================================================================
+
+saveAttractors <- function(attractors, ptPaths, config) {
+  if (config$verbose) { message("Saving attractors RDS file to: ", ptPaths$attractors) }
+  saveRDS(attractors, file = ptPaths$attractors)
+}
+
+saveBooleanRules <- function(boolRules, ptPaths, config) {
+  if (config$verbose) { message("Saving Boolean rules RDS file to: ", ptPaths$booleanRules) }
+  saveRDS(boolRules, file = ptPaths$attractors)
+}
+
+saveBoolNetReport <- function(boolNetReport, ptPaths, config) {
+  if (config$verbose) { message("Saving switch gene report to: ", ptPaths$boolNetTsv) }
+  write.table(boolNetReport, file = ptPaths$boolNetTsv, sep = "\t", quote = FALSE, row.names = FALSE)
+}
+
+saveBoolNetwork <- function(boolNetwork, ptPaths, config) {
+  if (config$verbose) { message("Saving BoolNet network RDS file to: ", ptPaths$boolNet) }
+  saveRDS(boolNetwork, file = ptPaths$boolNet)
+}
+
+saveGeneMap <- function(geneMap, ptPaths, config) {
+  if (config$verbose) { message("Saving gene mapping to: ", ptPaths$geneMap) }
+  saveRDS(geneMap, file = ptPaths$geneMap)
+}
 
 saveGeneSwitches <- function(switchGenes, ptPaths, config) {
   if (config$verbose) { message("Saving switch genes to: ", ptPaths$geneSwitches) }

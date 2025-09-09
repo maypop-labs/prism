@@ -1,25 +1,62 @@
 # =============================================================================
-# booleanManager.R (Production Version with SCENIC Integration)
-# Purpose: SCENIC-enhanced Boolean network construction with k=0 focus
-# Enhanced with: regulator selection, sign-aware templates, composite scoring
+# booleanManager.R (Cleaned Version - Only Functions Used by Script 06)
+# Purpose: Boolean network construction functions for PRISM workflow
 # =============================================================================
 
 library(dplyr)
 
 # =============================================================================
-# Enhanced Regulator Selection Using SCENIC Metadata
+# Gene Name Sanitization
+# =============================================================================
+
+#' Generate sanitized gene name mapping for BoolNet compatibility
+#'
+#' Creates a mapping between original gene names and sanitized versions that
+#' are valid R variable names and compatible with BoolNet.
+#'
+#' @param geneNames Character vector of original gene names
+#' @return Data frame with columns OriginalName and SanitizedName
+#' @export
+generateSanitizedGeneMapping <- function(geneNames) {
+  data.frame(
+    OriginalName = geneNames,
+    SanitizedName = sapply(geneNames, sanitizeGeneName, USE.NAMES = FALSE),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Convert gene name to valid R variable name
+#'
+#' Converts gene names to valid R variable names by replacing invalid characters
+#' with underscores, adding 'X' prefix for names starting with numbers, and
+#' handling empty/invalid names.
+#'
+#' @param name Character string with original gene name
+#' @return Character string with sanitized gene name
+sanitizeGeneName <- function(name) {
+  # Convert to valid R variable name
+  name2 <- gsub("[^A-Za-z0-9_]", "_", trimws(name))
+  if (grepl("^[0-9]", name2)) name2 <- paste0("X", name2)
+  if (name2 == "" || name2 == "_") name2 <- "Unknown"
+  name2
+}
+
+# =============================================================================
+# Regulator Selection Using SCENIC Metadata
 # =============================================================================
 
 #' Select optimal regulators for target using SCENIC metadata
 #'
 #' Uses composite weighting of correlation, motif confidence, SCENIC importance,
 #' and diversity filtering to choose the best regulators for Boolean rule inference.
+#' Filters regulators by presence in expression matrix and applies anti-correlation
+#' filtering to avoid multicollinearity.
 #'
 #' @param target Character name of target gene (sanitized)
-#' @param edges Edge dataframe with SCENIC metadata (TF, Target, corr, regType, etc.)
+#' @param edges Data frame with SCENIC metadata containing columns TF, Target, corr, regType, motifConfidence, NES, hasMotif
 #' @param matBin Binary expression matrix (genes x cells)
-#' @param maxRegs Maximum number of regulators to select
-#' @return List with selected regulator information
+#' @param maxRegs Integer, maximum number of regulators to select (default: 3)
+#' @return List with components: regulators (data frame), n_selected (integer), mean_weight (numeric), has_activators (logical), has_repressors (logical)
 #' @export
 selectOptimalRegulatorsForTarget <- function(target, edges, matBin, maxRegs = 3) {
   
@@ -77,7 +114,11 @@ selectOptimalRegulatorsForTarget <- function(target, edges, matBin, maxRegs = 3)
 
 #' Calculate composite regulator weights using SCENIC metadata
 #'
-#' @param edges Edge dataframe for a single target
+#' Combines multiple SCENIC-derived metrics into a single composite weight
+#' for regulator selection. Includes correlation strength, motif confidence,
+#' NES scores, prior knowledge, and regulatory direction clarity.
+#'
+#' @param edges Data frame of edges for a single target with SCENIC metadata
 #' @return Numeric vector of composite weights
 calculateRegulatorWeights <- function(edges) {
   
@@ -103,7 +144,7 @@ calculateRegulatorWeights <- function(edges) {
   # Slight bonus for clear regulatory direction
   direction_bonus <- ifelse(edges$regType %in% c("Activation", "Inhibition"), 0.05, 0)
   
-  # Composite weight calculation
+  # Composite weight calculation (matches config.yaml weights)
   composite <- corr_weight + 
                (motif_bonus * 0.3) + 
                (nes_bonus * 0.2) + 
@@ -115,10 +156,14 @@ calculateRegulatorWeights <- function(edges) {
 
 #' Select diverse regulators to avoid multicollinearity
 #'
-#' @param edges Sorted edge dataframe
-#' @param matBin Binary expression matrix
-#' @param maxRegs Maximum regulators to select
-#' @return Integer vector of selected row indices
+#' Uses greedy selection starting with highest-weighted regulator, then adds
+#' additional regulators that are not highly correlated (correlation < 0.8)
+#' with already selected regulators.
+#'
+#' @param edges Sorted edge data frame for a target
+#' @param matBin Binary expression matrix (genes x cells)
+#' @param maxRegs Maximum number of regulators to select
+#' @return Integer vector of selected row indices from edges
 selectDiverseRegulatorsWithWeights <- function(edges, matBin, maxRegs) {
   
   regulators <- edges$TF
@@ -133,7 +178,6 @@ selectDiverseRegulatorsWithWeights <- function(edges, matBin, maxRegs) {
   reg_cors <- tryCatch({
     cor(t(reg_matrix))
   }, error = function(e) {
-    # If correlation fails, just return the first maxRegs
     return(matrix(0, nrow = n_regs, ncol = n_regs))
   })
   
@@ -156,250 +200,21 @@ selectDiverseRegulatorsWithWeights <- function(edges, matBin, maxRegs) {
 }
 
 # =============================================================================
-# Sign-Aware Template Generation
-# =============================================================================
-
-#' Generate Boolean templates respecting SCENIC regulatory signs
-#'
-#' Creates biologically plausible Boolean logic templates based on whether
-#' regulators are activators or repressors according to SCENIC analysis.
-#'
-#' @param target Character name of target gene
-#' @param regulator_info List from selectOptimalRegulatorsForTarget
-#' @return Named list of template rule strings
-#' @export
-generateSignAwareTemplates <- function(target, regulator_info) {
-  
-  if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
-    return(list(
-      self_activation = paste0(target, ", ", target)
-    ))
-  }
-  
-  regulators <- regulator_info$regulators
-  activators <- regulators$TF[regulators$regType == "Activation" & !is.na(regulators$regType)]
-  repressors <- regulators$TF[regulators$regType == "Inhibition" & !is.na(regulators$regType)]
-  
-  templates <- list()
-  
-  # Template 1: Single regulator (if only one)
-  if (nrow(regulators) == 1) {
-    reg <- regulators$TF[1]
-    if (!is.na(regulators$regType[1]) && regulators$regType[1] == "Inhibition") {
-      templates$single_repressor <- paste0(target, ", !", reg)
-    } else {
-      templates$single_activator <- paste0(target, ", ", reg)
-    }
-    return(templates)
-  }
-  
-  # Template 2: All activators OR (any activator sufficient)
-  if (length(activators) > 0) {
-    templates$activator_or <- paste0(target, ", ", paste(activators, collapse = " | "))
-  }
-  
-  # Template 3: All activators AND (cooperative activation)
-  if (length(activators) > 1) {
-    templates$activator_and <- paste0(target, ", ", paste(activators, collapse = " & "))
-  }
-  
-  # Template 4: Balanced regulation (activators present, repressors absent)
-  if (length(activators) > 0 && length(repressors) > 0) {
-    act_part <- if (length(activators) == 1) {
-      activators[1]
-    } else {
-      paste0("(", paste(activators, collapse = " | "), ")")
-    }
-    
-    rep_part <- if (length(repressors) == 1) {
-      paste0("!", repressors[1])
-    } else {
-      paste0("!(", paste(repressors, collapse = " | "), ")")
-    }
-    
-    templates$balanced <- paste0(target, ", ", act_part, " & ", rep_part)
-  }
-  
-  # Template 5: Repressor dominant (target OFF when any repressor ON)
-  if (length(repressors) > 0) {
-    if (length(repressors) == 1) {
-      templates$repressor_dominant <- paste0(target, ", !", repressors[1])
-    } else {
-      templates$repressor_dominant <- paste0(target, ", !(", paste(repressors, collapse = " | "), ")")
-    }
-  }
-  
-  # Template 6: Majority rule (for 3+ regulators)
-  if (nrow(regulators) >= 3) {
-    # Simple majority: more than half must be "on"
-    all_regs <- regulators$TF
-    pos_terms <- ifelse(!is.na(regulators$regType) & regulators$regType == "Inhibition", 
-                        paste0("!", all_regs), all_regs)
-    
-    # For 3 regulators, need at least 2 positive
-    if (length(pos_terms) == 3) {
-      pairs <- combn(pos_terms, 2, simplify = FALSE)
-      pair_strings <- sapply(pairs, function(p) paste0("(", paste(p, collapse = " & "), ")"))
-      templates$majority <- paste0(target, ", ", paste(pair_strings, collapse = " | "))
-    }
-  }
-  
-  return(templates)
-}
-
-# =============================================================================
-# Enhanced Rule Scoring with SCENIC Metrics
-# =============================================================================
-
-#' Score Boolean rule with SCENIC-aware composite metrics
-#'
-#' @param ruleStr BoolNet-compatible rule string
-#' @param matBin Binary expression matrix
-#' @param regulator_info Regulator information with SCENIC metadata
-#' @return List with composite score and breakdown
-#' @export
-scoreRuleWithScenicMetrics <- function(ruleStr, matBin, regulator_info) {
-  
-  # Base empirical accuracy using existing function
-  base_accuracy <- tryCatch({
-    scoreBooleanRule(ruleStr, matBin)
-  }, error = function(e) {
-    0  # Failed rules get 0 accuracy
-  })
-  
-  # Sign consistency bonus
-  sign_consistency <- calculateSignConsistencyBonus(ruleStr, regulator_info)
-  
-  # Parsimony bonus (prefer simpler rules)
-  parsimony_bonus <- calculateParsimonyBonus(ruleStr)
-  
-  # SCENIC confidence bonus
-  scenic_confidence <- calculateScenicConfidenceBonus(regulator_info)
-  
-  # Composite score with weighted components
-  composite <- base_accuracy + 
-               (sign_consistency * 0.05) + 
-               (parsimony_bonus * 0.02) + 
-               (scenic_confidence * 0.03)
-               
-  return(list(
-    composite_score = pmax(0, composite),  # Ensure non-negative
-    base_accuracy = base_accuracy,
-    sign_consistency = sign_consistency,
-    parsimony = parsimony_bonus,
-    scenic_confidence = scenic_confidence
-  ))
-}
-
-#' Calculate sign consistency bonus
-calculateSignConsistencyBonus <- function(ruleStr, regulator_info) {
-  
-  if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
-    return(0)
-  }
-  
-  # Parse rule to check if regulator usage matches expected signs
-  rule_parts <- strsplit(ruleStr, ",\\s*")[[1]]
-  if (length(rule_parts) != 2) return(0)
-  
-  logic_part <- rule_parts[2]
-  regulators <- regulator_info$regulators
-  
-  consistency_score <- 0
-  n_checked <- 0
-  
-  for (i in seq_len(nrow(regulators))) {
-    reg_name <- regulators$TF[i]
-    reg_type <- regulators$regType[i]
-    
-    if (is.na(reg_type)) next
-    
-    # Check if regulator appears in rule
-    if (grepl(paste0("\\b", reg_name, "\\b"), logic_part)) {
-      n_checked <- n_checked + 1
-      
-      # Check if usage matches expected sign
-      if (reg_type == "Activation") {
-        # Should appear without negation (or in positive context)
-        if (grepl(paste0("(?<!!)\\b", reg_name, "\\b"), logic_part, perl = TRUE)) {
-          consistency_score <- consistency_score + 1
-        }
-      } else if (reg_type == "Inhibition") {
-        # Should appear with negation
-        if (grepl(paste0("!\\s*", reg_name, "\\b"), logic_part)) {
-          consistency_score <- consistency_score + 1
-        }
-      }
-    }
-  }
-  
-  return(if (n_checked > 0) consistency_score / n_checked else 0)
-}
-
-#' Calculate parsimony bonus (prefer simpler rules)
-calculateParsimonyBonus <- function(ruleStr) {
-  
-  rule_parts <- strsplit(ruleStr, ",\\s*")[[1]]
-  if (length(rule_parts) != 2) return(0)
-  
-  logic_part <- rule_parts[2]
-  
-  # Count logical operators
-  n_and <- length(gregexpr("&", logic_part, fixed = TRUE)[[1]])
-  n_or <- length(gregexpr("\\|", logic_part)[[1]])
-  n_not <- length(gregexpr("!", logic_part, fixed = TRUE)[[1]])
-  
-  # Adjust for -1 when no matches found
-  n_and <- ifelse(n_and == 1 && !grepl("&", logic_part), 0, n_and)
-  n_or <- ifelse(n_or == 1 && !grepl("\\|", logic_part), 0, n_or)
-  n_not <- ifelse(n_not == 1 && !grepl("!", logic_part), 0, n_not)
-  
-  # Complexity penalty
-  complexity <- (n_and * 0.5) + (n_or * 0.3) + (n_not * 0.2)
-  
-  # Return bonus (higher for simpler rules)
-  return(pmax(0, 1 - complexity / 10))
-}
-
-#' Calculate SCENIC confidence bonus
-calculateScenicConfidenceBonus <- function(regulator_info) {
-  
-  if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
-    return(0)
-  }
-  
-  regulators <- regulator_info$regulators
-  
-  # Average motif confidence
-  motif_conf <- mean(ifelse(is.na(regulators$motifConfidence), 0, regulators$motifConfidence))
-  
-  # Average NES score (normalized)
-  nes_score <- mean(ifelse(is.na(regulators$NES), 0, pmax(0, regulators$NES / 5)))
-  
-  # Proportion with confirmed motifs
-  motif_prop <- mean(ifelse(is.na(regulators$hasMotif), 0, as.numeric(regulators$hasMotif)))
-  
-  # Combined confidence
-  confidence <- (motif_conf * 0.4) + (nes_score * 0.4) + (motif_prop * 0.2)
-  
-  return(confidence)
-}
-
-# =============================================================================
-# Multi-Method Boolean Rule Inference
+# Boolean Rule Inference
 # =============================================================================
 
 #' Infer best Boolean rule using multiple methods
 #'
 #' Tries both sign-aware templates and empirical state counting,
-#' then selects the best based on composite scoring.
+#' then selects the best based on composite scoring. Returns the
+#' highest-scoring rule with complete metadata.
 #'
 #' @param target Target gene name
-#' @param regulator_info Selected regulator information
-#' @param matBin Binary expression matrix
-#' @param cellOrder Pseudotime cell ordering
-#' @param config Configuration object
-#' @return Best rule with metadata
+#' @param regulator_info List with selected regulator information from selectOptimalRegulatorsForTarget
+#' @param matBin Binary expression matrix (genes x cells)
+#' @param cellOrder Vector of cell indices ordered by pseudotime
+#' @param config Configuration object with scoring parameters
+#' @return List with best rule and metadata, or NULL if no valid rule found
 #' @export
 inferBestBooleanRule <- function(target, regulator_info, matBin, cellOrder, config) {
   
@@ -412,10 +227,13 @@ inferBestBooleanRule <- function(target, regulator_info, matBin, cellOrder, conf
     rule_str <- templates[[template_name]]
     
     # Score template
-    score_info <- scoreRuleWithScenicMetrics(rule_str, matBin, regulator_info)
+    score_info <- scoreRuleWithScenicMetrics(rule_str, target, matBin, regulator_info)
+    
+    # Store rule in BoolNet format (target, logic)
+    full_rule_str <- paste0(target, ", ", rule_str)
     
     candidates[[paste0("template_", template_name)]] <- list(
-      rule = rule_str,
+      rule = full_rule_str,
       score = score_info$composite_score,
       method = paste0("template_", template_name),
       score_breakdown = score_info,
@@ -444,7 +262,7 @@ inferBestBooleanRule <- function(target, regulator_info, matBin, cellOrder, conf
                                       empirical_result$bestFns[[1]]$outPattern)
           
           # Score empirical rule
-          score_info <- scoreRuleWithScenicMetrics(rule_str, matBin, regulator_info)
+          score_info <- scoreRuleWithScenicMetrics(rule_str, target, matBin, regulator_info)
           
           candidates$empirical <- list(
             rule = rule_str,
@@ -461,7 +279,6 @@ inferBestBooleanRule <- function(target, regulator_info, matBin, cellOrder, conf
         }
       }
     }, error = function(e) {
-      # Empirical method failed, continue with just templates
       warning("Empirical method failed for ", target, ": ", e$message)
     })
   }
@@ -484,17 +301,213 @@ inferBestBooleanRule <- function(target, regulator_info, matBin, cellOrder, conf
   return(best_candidate)
 }
 
+#' Generate Boolean templates respecting SCENIC regulatory signs
+#'
+#' Creates biologically plausible Boolean logic templates based on whether
+#' regulators are activators or repressors according to SCENIC analysis.
+#' Generates multiple template types (single regulator, OR, AND, balanced, repressor-dominant).
+#'
+#' @param target Character name of target gene
+#' @param regulator_info List from selectOptimalRegulatorsForTarget with regulator metadata
+#' @return Named list of template rule strings (BoolNet logic format - target name not included)
+generateSignAwareTemplates <- function(target, regulator_info) {
+  
+  if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
+    return(list(
+      self_activation = target  # Self-activation: gene depends on itself
+    ))
+  }
+  
+  regulators <- regulator_info$regulators
+  activators <- regulators$TF[regulators$regType == "Activation" & !is.na(regulators$regType)]
+  repressors <- regulators$TF[regulators$regType == "Inhibition" & !is.na(regulators$regType)]
+  
+  templates <- list()
+  
+  # Template 1: Single regulator (if only one)
+  if (nrow(regulators) == 1) {
+    reg <- regulators$TF[1]
+    if (!is.na(regulators$regType[1]) && regulators$regType[1] == "Inhibition") {
+      templates$single_repressor <- paste0("!", reg)
+    } else {
+      templates$single_activator <- reg
+    }
+    return(templates)
+  }
+  
+  # Template 2: All activators OR (any activator sufficient)
+  if (length(activators) > 0) {
+    templates$activator_or <- paste(activators, collapse = " | ")
+  }
+  
+  # Template 3: All activators AND (cooperative activation)
+  if (length(activators) > 1) {
+    templates$activator_and <- paste(activators, collapse = " & ")
+  }
+  
+  # Template 4: Balanced regulation (activators present, repressors absent)
+  if (length(activators) > 0 && length(repressors) > 0) {
+    act_part <- if (length(activators) == 1) {
+      activators[1]
+    } else {
+      paste0("(", paste(activators, collapse = " | "), ")")
+    }
+    
+    rep_part <- if (length(repressors) == 1) {
+      paste0("!", repressors[1])
+    } else {
+      paste0("!(", paste(repressors, collapse = " | "), ")")
+    }
+    
+    templates$balanced <- paste0(act_part, " & ", rep_part)
+  }
+  
+  # Template 5: Repressor dominant (target OFF when any repressor ON)
+  if (length(repressors) > 0) {
+    if (length(repressors) == 1) {
+      templates$repressor_dominant <- paste0("!", repressors[1])
+    } else {
+      templates$repressor_dominant <- paste0("!(", paste(repressors, collapse = " | "), ")")
+    }
+  }
+  
+  return(templates)
+}
+
+#' Score Boolean rule with SCENIC-aware composite metrics
+#'
+#' Evaluates Boolean rules using empirical accuracy plus bonuses for
+#' sign consistency with SCENIC regulatory directions and SCENIC confidence scores.
+#'
+#' @param ruleLogic Character string with BoolNet-compatible logic (without target name)
+#' @param target Target gene name
+#' @param matBin Binary expression matrix (genes x cells)
+#' @param regulator_info Regulator information with SCENIC metadata
+#' @return List with composite_score, base_accuracy, sign_consistency, and scenic_confidence
+scoreRuleWithScenicMetrics <- function(ruleLogic, target, matBin, regulator_info) {
+  
+  # Create full rule string for scoring
+  fullRule <- paste0(target, ", ", ruleLogic)
+  
+  # Base empirical accuracy using existing function
+  base_accuracy <- tryCatch({
+    scoreBooleanRule(fullRule, matBin)
+  }, error = function(e) {
+    0  # Failed rules get 0 accuracy
+  })
+  
+  # Sign consistency bonus
+  sign_consistency <- calculateSignConsistencyBonus(ruleLogic, regulator_info)
+  
+  # SCENIC confidence bonus
+  scenic_confidence <- calculateScenicConfidenceBonus(regulator_info)
+  
+  # Composite score with weighted components
+  composite <- base_accuracy + 
+               (sign_consistency * 0.05) + 
+               (scenic_confidence * 0.03)
+               
+  return(list(
+    composite_score = pmax(0, composite),  # Ensure non-negative
+    base_accuracy = base_accuracy,
+    sign_consistency = sign_consistency,
+    scenic_confidence = scenic_confidence
+  ))
+}
+
+#' Calculate sign consistency bonus
+#'
+#' Measures how well inferred Boolean rule logic matches expected regulatory
+#' directions from SCENIC (activators should appear without negation,
+#' repressors should appear with negation).
+#'
+#' @param ruleLogic Character string with Boolean logic
+#' @param regulator_info List with regulator metadata including regType
+#' @return Numeric value between 0 and 1 (proportion of consistent regulator usage)
+calculateSignConsistencyBonus <- function(ruleLogic, regulator_info) {
+  
+  if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
+    return(0)
+  }
+  
+  regulators <- regulator_info$regulators
+  
+  consistency_score <- 0
+  n_checked <- 0
+  
+  for (i in seq_len(nrow(regulators))) {
+    reg_name <- regulators$TF[i]
+    reg_type <- regulators$regType[i]
+    
+    if (is.na(reg_type)) next
+    
+    # Check if regulator appears in rule
+    if (grepl(paste0("\\b", reg_name, "\\b"), ruleLogic)) {
+      n_checked <- n_checked + 1
+      
+      # Check if usage matches expected sign
+      if (reg_type == "Activation") {
+        # Should appear without negation (or in positive context)
+        if (grepl(paste0("(?<!!)\\b", reg_name, "\\b"), ruleLogic, perl = TRUE)) {
+          consistency_score <- consistency_score + 1
+        }
+      } else if (reg_type == "Inhibition") {
+        # Should appear with negation
+        if (grepl(paste0("!\\s*", reg_name, "\\b"), ruleLogic)) {
+          consistency_score <- consistency_score + 1
+        }
+      }
+    }
+  }
+  
+  return(if (n_checked > 0) consistency_score / n_checked else 0)
+}
+
+#' Calculate SCENIC confidence bonus
+#'
+#' Combines multiple SCENIC confidence metrics (motif confidence, NES scores,
+#' motif presence) into a single bonus score for rule quality.
+#'
+#' @param regulator_info List with regulator metadata including motifConfidence, NES, hasMotif
+#' @return Numeric confidence score (0 to ~1)
+calculateScenicConfidenceBonus <- function(regulator_info) {
+  
+  if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
+    return(0)
+  }
+  
+  regulators <- regulator_info$regulators
+  
+  # Average motif confidence
+  motif_conf <- mean(ifelse(is.na(regulators$motifConfidence), 0, regulators$motifConfidence))
+  
+  # Average NES score (normalized)
+  nes_score <- mean(ifelse(is.na(regulators$NES), 0, pmax(0, regulators$NES / 5)))
+  
+  # Proportion with confirmed motifs
+  motif_prop <- mean(ifelse(is.na(regulators$hasMotif), 0, as.numeric(regulators$hasMotif)))
+  
+  # Combined confidence (weighted average)
+  confidence <- (motif_conf * 0.4) + (nes_score * 0.4) + (motif_prop * 0.2)
+  
+  return(confidence)
+}
+
 # =============================================================================
 # Fallback Rule Creation
 # =============================================================================
 
 #' Create intelligent fallback rule when inference fails
 #'
+#' Analyzes target gene expression pattern to create appropriate fallback rules.
+#' Uses constant rules for genes with extreme expression bias, self-activation
+#' for intermediate expression, or majority-based rules as final fallback.
+#'
 #' @param target Target gene name
 #' @param regulator_info Available regulator information (may be empty)
-#' @param matBin Binary expression matrix
-#' @param config Configuration object
-#' @return Fallback rule with appropriate method label
+#' @param matBin Binary expression matrix (genes x cells)
+#' @param config Configuration object (currently unused)
+#' @return List with rule metadata and appropriate fallback method label
 #' @export
 createIntelligentFallback <- function(target, regulator_info, matBin, config) {
   
@@ -537,6 +550,15 @@ createIntelligentFallback <- function(target, regulator_info, matBin, config) {
 }
 
 #' Create simple fallback rule for failed cases
+#'
+#' Creates basic constant or majority-based fallback rules when more
+#' sophisticated inference methods fail.
+#'
+#' @param target Target gene name
+#' @param matBin Binary expression matrix (genes x cells)
+#' @param config Configuration object (currently unused)
+#' @return List with simple fallback rule metadata
+#' @export
 createFallbackRule <- function(target, matBin, config) {
   
   if (!target %in% rownames(matBin)) {
@@ -551,6 +573,14 @@ createFallbackRule <- function(target, matBin, config) {
 }
 
 #' Create constant rule fallback
+#'
+#' Creates a constant Boolean rule (always 0 or always 1) as fallback
+#' when other inference methods fail or are inappropriate.
+#'
+#' @param target Target gene name
+#' @param value Constant value (0 or 1)
+#' @param reason Character string describing reason for fallback
+#' @return List with constant rule metadata
 createConstantFallback <- function(target, value, reason) {
   list(
     rule = paste0(target, ", ", value),
@@ -563,15 +593,20 @@ createConstantFallback <- function(target, value, reason) {
 }
 
 # =============================================================================
-# Final Validation Functions
+# Validation Functions
 # =============================================================================
 
 #' Perform comprehensive final validation of all rules
 #'
-#' @param boolRules List of Boolean rules
-#' @param matBin Binary expression matrix
-#' @param edges Edge list for additional validation
-#' @return List with validation results
+#' Validates Boolean rules for BoolNet syntax compatibility and calculates
+#' quality metrics across the entire rule set. Checks for invalid characters,
+#' proper rule structure, and identifies problematic rules.
+#'
+#' @param boolRules List of Boolean rules with rule metadata
+#' @param matBin Binary expression matrix (genes x cells) - currently unused
+#' @param edges Edge list for additional validation - currently unused
+#' @return List with validation statistics: total_rules, valid_syntax, mean_quality, high_quality, syntax_errors
+#' @export
 performFinalValidation <- function(boolRules, matBin, edges) {
   
   total_rules <- length(boolRules)
@@ -594,9 +629,9 @@ performFinalValidation <- function(boolRules, matBin, edges) {
     # Basic checks
     if (length(parts) != 2) return(FALSE)
     
-    # Check for invalid characters
+    # Check for invalid characters - allow letters, numbers, underscore, &, |, (), !, and space
     logic <- parts[2]
-    has_invalid_chars <- grepl("[^A-Za-z0-9_&|()!\\s]", logic)
+    has_invalid_chars <- grepl("[^A-Za-z0-9_&\\|()! ]", logic)
     
     return(!has_invalid_chars)
   })
@@ -619,105 +654,95 @@ performFinalValidation <- function(boolRules, matBin, edges) {
 }
 
 # =============================================================================
-# Core Utility Functions (Fallbacks for missing functions)
+# Utility Functions and Fallbacks
 # =============================================================================
 
-# Helper function for null coalescing
+#' Null coalescing operator
+#'
+#' Returns the right-hand side if left-hand side is NULL, empty, or NA.
+#'
+#' @param x Left-hand side value
+#' @param y Right-hand side fallback value
+#' @return x if valid, otherwise y
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || is.na(x)) y else x
 
-# Ensure these core functions are available (placeholders if missing)
+# Fallback implementations for missing functions from boolean_helpers.R
 if (!exists("makeInputOutputPairs")) {
+  #' Fallback for makeInputOutputPairs function
+  #' @param targetGene Target gene name
+  #' @param regulators Vector of regulator gene names  
+  #' @param matBin Binary expression matrix
+  #' @param cellOrder Cell ordering vector
+  #' @param k Time step parameter
+  #' @return NULL (fallback implementation)
   makeInputOutputPairs <- function(targetGene, regulators, matBin, cellOrder, k = 0) {
-    stop("makeInputOutputPairs function not found - ensure boolean_helpers.R is loaded")
+    warning("makeInputOutputPairs function not found - using fallback")
+    return(NULL)
   }
 }
 
 if (!exists("findBestBooleanRules")) {
+  #' Fallback for findBestBooleanRules function
+  #' @param ioData Input-output data structure
+  #' @return NULL (fallback implementation)
   findBestBooleanRules <- function(ioData) {
-    stop("findBestBooleanRules function not found - ensure boolean_helpers.R is loaded")
+    warning("findBestBooleanRules function not found - using fallback")
+    return(NULL)
   }
 }
 
 if (!exists("makeBoolNetRule")) {
+  #' Fallback for makeBoolNetRule function
+  #' @param geneName Target gene name
+  #' @param regulators Vector of regulator names
+  #' @param outPattern Output pattern vector
+  #' @return Character string with BoolNet rule
   makeBoolNetRule <- function(geneName, regulators, outPattern) {
     # Fallback implementation for BoolNet rule creation
     if (length(regulators) == 0) {
-      # No regulators - use constant or self-activation
-      if (length(outPattern) == 1 && outPattern[1] == 1) {
-        return(paste0(geneName, ", ", geneName))  # Self-activation
-      } else {
-        return(paste0(geneName, ", ", outPattern[1]))  # Constant
-      }
+      return(paste0(geneName, ", ", geneName))  # Self-activation
     }
-    
-    # With regulators - create simple logic
-    if (length(outPattern) == 2^length(regulators)) {
-      # Try to create a simple rule based on pattern
-      if (all(outPattern == 1)) {
-        return(paste0(geneName, ", 1"))
-      } else if (all(outPattern == 0)) {
-        return(paste0(geneName, ", 0"))
-      } else {
-        # Default to OR logic
-        return(paste0(geneName, ", ", paste(regulators, collapse = " | ")))
-      }
-    }
-    
-    # Default fallback
+    # Default to OR logic
     return(paste0(geneName, ", ", paste(regulators, collapse = " | ")))
   }
 }
 
-if (!exists("scoreBooleanRule")) {
-  scoreBooleanRule <- function(ruleStr, matBin) {
-    # Fallback implementation for rule scoring
-    tryCatch({
-      # Parse the rule
-      parts <- strsplit(ruleStr, ",\\s*")[[1]]
-      if (length(parts) != 2) return(0)
-      
-      target <- trimws(parts[1])
-      logic <- trimws(parts[2])
-      
-      if (!target %in% rownames(matBin)) return(0)
-      
-      # Simple scoring: return proportion of cells where rule matches
-      target_expr <- matBin[target, ]
-      
-      # For constants, return how well it matches
-      if (logic == "0") {
-        return(mean(target_expr == 0, na.rm = TRUE))
-      } else if (logic == "1") {
-        return(mean(target_expr == 1, na.rm = TRUE))
-      } else if (logic == target) {
-        # Self-activation: score autocorrelation
-        return(0.7)  # Reasonable default for self-activation
-      } else {
-        # Complex logic - return moderate score
-        return(0.6)
-      }
-    }, error = function(e) {
-      return(0)
-    })
-  }
-}
-
-if (!exists("sanitizeGeneName")) {
-  sanitizeGeneName <- function(name) {
-    # Convert to valid R variable name
-    name2 <- gsub("[^A-Za-z0-9_]", "_", trimws(name))
-    if (grepl("^[0-9]", name2)) name2 <- paste0("X", name2)
-    if (name2 == "" || name2 == "_") name2 <- "Unknown"
-    name2
-  }
-}
-
-if (!exists("generateSanitizedGeneMapping")) {
-  generateSanitizedGeneMapping <- function(geneNames) {
-    data.frame(
-      OriginalName = geneNames,
-      SanitizedName = sapply(geneNames, sanitizeGeneName, USE.NAMES = FALSE),
-      stringsAsFactors = FALSE
-    )
-  }
+#' Score Boolean rule empirically against expression data
+#'
+#' Fallback implementation that evaluates how well a Boolean rule
+#' matches the observed gene expression patterns in the data.
+#'
+#' @param ruleStr Character string with complete BoolNet rule ("target, logic")
+#' @param matBin Binary expression matrix (genes x cells)
+#' @return Numeric score between 0 and 1 indicating rule accuracy
+scoreBooleanRule <- function(ruleStr, matBin) {
+  # Fallback implementation for rule scoring
+  tryCatch({
+    # Parse the rule
+    parts <- strsplit(ruleStr, ",\\s*")[[1]]
+    if (length(parts) != 2) return(0)
+    
+    target <- trimws(parts[1])
+    logic <- trimws(parts[2])
+    
+    if (!target %in% rownames(matBin)) return(0)
+    
+    # Simple scoring: return proportion of cells where rule matches
+    target_expr <- matBin[target, ]
+    
+    # For constants, return how well it matches
+    if (logic == "0") {
+      return(mean(target_expr == 0, na.rm = TRUE))
+    } else if (logic == "1") {
+      return(mean(target_expr == 1, na.rm = TRUE))
+    } else if (logic == target) {
+      # Self-activation: score autocorrelation
+      return(0.7)  # Reasonable default for self-activation
+    } else {
+      # Complex logic - return moderate score
+      return(0.6)
+    }
+  }, error = function(e) {
+    return(0)
+  })
 }

@@ -1,7 +1,6 @@
 # =============================================================================
-# booleanReportManager.R (Production Version with SCENIC Integration)
-# Purpose: SCENIC-enhanced Boolean rule analysis and visualization
-# Enhanced with: regulator weight analysis, sign consistency metrics, method comparison
+# booleanReportManager.R (Cleaned Version - Only Functions Used by Script 06)
+# Purpose: Boolean rule analysis and visualization for PRISM workflow
 # =============================================================================
 
 library(ggplot2)
@@ -15,14 +14,16 @@ library(gridExtra)
 #' Generate comprehensive Boolean rule analysis report
 #'
 #' Creates enhanced visualizations and analysis incorporating SCENIC metadata
-#' and multi-method rule inference results.
+#' and multi-method rule inference results. Generates plots for rule quality
+#' distribution, method comparison, and network complexity, plus text reports.
 #'
-#' @param boolRules List of Boolean rules from main script
-#' @param edges Edge list data frame with SCENIC metadata
-#' @param paths Paths object with directory structure
-#' @param cellType Cell type name for file naming
-#' @param trajectory Trajectory name for file naming  
-#' @param config Configuration object with plot parameters
+#' @param boolRules List of Boolean rules from main script with rule metadata
+#' @param edges Data frame with SCENIC metadata (TF, Target, corr, regType, etc.)
+#' @param paths Paths object with directory structure containing base$plots and base$txt
+#' @param cellType Character string with cell type name for file naming
+#' @param trajectory Character string with trajectory name for file naming  
+#' @param config Configuration object with plot parameters (figWidth, figHeight, figDPI)
+#' @return Invisible list of generated plots, or NULL if no data available
 #' @export
 generateBooleanRuleReport <- function(boolRules, edges, paths, cellType, trajectory, config) {
   
@@ -59,19 +60,10 @@ generateBooleanRuleReport <- function(boolRules, edges, paths, cellType, traject
     # 1. Rule quality distribution with method breakdown
     plots$quality_dist <- plotRuleQualityByMethod(ruleStats, standardTheme)
     
-    # 2. SCENIC integration analysis
-    plots$scenic_analysis <- plotScenicIntegrationAnalysis(ruleStats, standardTheme)
-    
-    # 3. Sign consistency analysis
-    plots$sign_consistency <- plotSignConsistencyAnalysis(ruleStats, standardTheme)
-    
-    # 4. Regulator weight distribution
-    plots$regulator_weights <- plotRegulatorWeightDistribution(ruleStats, edges, standardTheme)
-    
-    # 5. Method comparison
+    # 2. Method comparison
     plots$method_comparison <- plotMethodComparisonAnalysis(ruleStats, standardTheme)
     
-    # 6. Network complexity overview
+    # 3. Network complexity overview
     plots$network_complexity <- plotNetworkComplexityOverview(ruleStats, standardTheme)
     
   }, error = function(e) {
@@ -100,9 +92,6 @@ generateBooleanRuleReport <- function(boolRules, edges, paths, cellType, traject
   tryCatch({
     generateEnhancedTextReport(ruleStats, boolRules, edges,
                               file.path(paths$base$txt, paste0(cellType, "_", trajectory, "_boolean_report.txt")))
-    
-    generateSummaryStatistics(ruleStats, boolRules, edges,
-                             file.path(paths$base$txt, paste0(cellType, "_", trajectory, "_boolean_summary.txt")))
   }, error = function(e) {
     warning("Error generating text reports: ", e$message)
   })
@@ -115,14 +104,18 @@ generateBooleanRuleReport <- function(boolRules, edges, paths, cellType, traject
 }
 
 # =============================================================================
-# Enhanced Statistics Extraction
+# Statistics Extraction
 # =============================================================================
 
 #' Extract comprehensive rule statistics with SCENIC metadata
 #'
-#' @param boolRules List of Boolean rules
-#' @param edges Edge list with SCENIC metadata
-#' @return Data frame with enhanced statistics
+#' Processes Boolean rules to extract key statistics including scores, methods,
+#' regulator counts, and rule complexity metrics. Categorizes rules by inference
+#' method and analyzes logical operators used.
+#'
+#' @param boolRules List of Boolean rules with metadata (score, method, n_regulators, rule)
+#' @param edges Data frame with SCENIC metadata (currently used for potential expansion)
+#' @return Data frame with rule statistics and complexity metrics
 extractEnhancedRuleStatistics <- function(boolRules, edges) {
   
   if (length(boolRules) == 0) {
@@ -136,7 +129,6 @@ extractEnhancedRuleStatistics <- function(boolRules, edges) {
     method = sapply(boolRules, function(x) x$method %||% "unknown"),
     n_regulators = sapply(boolRules, function(x) x$n_regulators %||% 0),
     rule_string = sapply(boolRules, function(x) x$rule %||% ""),
-    k_used = sapply(boolRules, function(x) x$k_used %||% 0),
     stringsAsFactors = FALSE
   )
   
@@ -144,41 +136,8 @@ extractEnhancedRuleStatistics <- function(boolRules, edges) {
   ruleStats$has_and <- grepl("&", ruleStats$rule_string)
   ruleStats$has_or <- grepl("\\|", ruleStats$rule_string)
   ruleStats$has_not <- grepl("!", ruleStats$rule_string)
-  ruleStats$rule_length <- nchar(ruleStats$rule_string)
   
-  # Count operators more carefully
-  ruleStats$n_operators <- sapply(ruleStats$rule_string, function(rule) {
-    logic_part <- strsplit(rule, ",\\s*")[[1]]
-    if (length(logic_part) >= 2) {
-      logic <- logic_part[2]
-      and_count <- length(gregexpr("&", logic, fixed = TRUE)[[1]])
-      or_count <- length(gregexpr("\\|", logic)[[1]])
-      not_count <- length(gregexpr("!", logic, fixed = TRUE)[[1]])
-      
-      # Adjust for no matches (-1 return)
-      and_count <- ifelse(and_count == 1 && !grepl("&", logic), 0, and_count)
-      or_count <- ifelse(or_count == 1 && !grepl("\\|", logic), 0, or_count)
-      not_count <- ifelse(not_count == 1 && !grepl("!", logic), 0, not_count)
-      
-      return(and_count + or_count + not_count)
-    }
-    return(0)
-  })
-  
-  # Add score breakdown if available
-  ruleStats$base_accuracy <- sapply(boolRules, function(x) {
-    if (!is.null(x$score_breakdown)) x$score_breakdown$base_accuracy else x$score %||% 0
-  })
-  
-  ruleStats$sign_consistency <- sapply(boolRules, function(x) {
-    if (!is.null(x$score_breakdown)) x$score_breakdown$sign_consistency else 0
-  })
-  
-  ruleStats$scenic_confidence <- sapply(boolRules, function(x) {
-    if (!is.null(x$score_breakdown)) x$score_breakdown$scenic_confidence else 0
-  })
-  
-  # Method categorization
+  # Method categorization for analysis
   ruleStats$method_category <- sapply(ruleStats$method, function(m) {
     if (grepl("template", m)) return("Template-based")
     if (grepl("empirical", m)) return("Empirical")
@@ -186,30 +145,21 @@ extractEnhancedRuleStatistics <- function(boolRules, edges) {
     return("Other")
   })
   
-  # Add regulator information from edges
-  if (nrow(edges) > 0) {
-    ruleStats$has_scenic_regs <- sapply(ruleStats$gene, function(g) {
-      target_edges <- edges[edges$Target == g, , drop = FALSE]
-      nrow(target_edges) > 0
-    })
-    
-    ruleStats$mean_reg_corr <- sapply(ruleStats$gene, function(g) {
-      target_edges <- edges[edges$Target == g, , drop = FALSE]
-      if (nrow(target_edges) > 0) mean(abs(target_edges$corr), na.rm = TRUE) else 0
-    })
-  } else {
-    ruleStats$has_scenic_regs <- FALSE
-    ruleStats$mean_reg_corr <- 0
-  }
-  
   return(ruleStats)
 }
 
 # =============================================================================
-# Enhanced Visualization Functions
+# Visualization Functions
 # =============================================================================
 
 #' Plot rule quality distribution by method
+#'
+#' Creates histogram showing distribution of rule quality scores faceted by
+#' inference method category. Includes reference lines for quality thresholds.
+#'
+#' @param ruleStats Data frame with rule statistics from extractEnhancedRuleStatistics
+#' @param standardTheme ggplot2 theme object for consistent plot styling
+#' @return ggplot2 object with quality distribution histogram
 plotRuleQualityByMethod <- function(ruleStats, standardTheme) {
   
   if (nrow(ruleStats) == 0) {
@@ -219,26 +169,18 @@ plotRuleQualityByMethod <- function(ruleStats, standardTheme) {
            labs(title = "Rule Quality Distribution - No Data"))
   }
   
-  # Create quality categories
-  ruleStats$quality_category <- cut(ruleStats$score, 
-                                    breaks = c(-Inf, 0.5, 0.75, 0.9, Inf),
-                                    labels = c("Low (<0.5)", "Medium (0.5-0.75)", 
-                                               "High (0.75-0.9)", "Excellent (>0.9)"))
-  
   ggplot(ruleStats, aes(x = score, fill = method_category)) +
     geom_histogram(bins = 25, alpha = 0.7, color = "white", size = 0.3) +
     facet_wrap(~method_category, scales = "free_y") +
     geom_vline(xintercept = 0.75, color = "red", linetype = "dashed", size = 0.5) +
-    geom_vline(xintercept = 0.9, color = "darkgreen", linetype = "dashed", size = 0.5) +
     scale_fill_brewer(palette = "Set2", name = "Method") +
     scale_x_continuous(limits = c(0, 1)) +
     labs(
       title = "Rule Quality Distribution by Method",
-      subtitle = paste0("n = ", nrow(ruleStats), " rules across ", 
-                        length(unique(ruleStats$method_category)), " method categories"),
+      subtitle = paste0("n = ", nrow(ruleStats), " rules across method categories"),
       x = "Rule Quality Score",
       y = "Number of Rules",
-      caption = "Red line: good threshold (0.75), Green line: excellent threshold (0.9)"
+      caption = "Red line indicates high quality threshold (0.75)"
     ) +
     standardTheme +
     theme(
@@ -247,123 +189,14 @@ plotRuleQualityByMethod <- function(ruleStats, standardTheme) {
     )
 }
 
-#' Plot SCENIC integration analysis
-plotScenicIntegrationAnalysis <- function(ruleStats, standardTheme) {
-  
-  if (nrow(ruleStats) == 0 || !("scenic_confidence" %in% colnames(ruleStats))) {
-    return(ggplot() + 
-           annotate("text", x = 0.5, y = 0.5, label = "No SCENIC data available", size = 5) +
-           standardTheme +
-           labs(title = "SCENIC Integration Analysis - No Data"))
-  }
-  
-  # Only analyze rules with SCENIC regulators
-  scenic_rules <- ruleStats[ruleStats$has_scenic_regs, ]
-  
-  if (nrow(scenic_rules) == 0) {
-    return(ggplot() + 
-           annotate("text", x = 0.5, y = 0.5, label = "No rules with SCENIC regulators", size = 5) +
-           standardTheme +
-           labs(title = "SCENIC Integration Analysis - No SCENIC Rules"))
-  }
-  
-  # Calculate correlation
-  correlation <- cor(scenic_rules$scenic_confidence, scenic_rules$score, 
-                     use = "complete.obs", method = "pearson")
-  
-  ggplot(scenic_rules, aes(x = scenic_confidence, y = score, color = method_category)) +
-    geom_point(alpha = 0.7, size = 2) +
-    geom_smooth(method = "lm", se = TRUE, alpha = 0.3, color = "black") +
-    scale_color_brewer(palette = "Set1", name = "Method") +
-    scale_x_continuous(limits = c(0, NA)) +
-    scale_y_continuous(limits = c(0, 1)) +
-    labs(
-      title = "Rule Quality vs SCENIC Confidence",
-      subtitle = "Higher SCENIC confidence should correlate with better rule quality",
-      x = "SCENIC Confidence Score",
-      y = "Rule Quality Score",
-      caption = paste0("Correlation: r = ", round(correlation, 3), " (n = ", nrow(scenic_rules), " rules)")
-    ) +
-    standardTheme
-}
-
-#' Plot sign consistency analysis
-plotSignConsistencyAnalysis <- function(ruleStats, standardTheme) {
-  
-  if (nrow(ruleStats) == 0 || !("sign_consistency" %in% colnames(ruleStats))) {
-    return(ggplot() + 
-           annotate("text", x = 0.5, y = 0.5, label = "No sign consistency data available", size = 5) +
-           standardTheme +
-           labs(title = "Sign Consistency Analysis - No Data"))
-  }
-  
-  # Filter to rules that have regulators
-  regRules <- ruleStats[ruleStats$n_regulators > 0, ]
-  
-  if (nrow(regRules) == 0) {
-    return(ggplot() + 
-           annotate("text", x = 0.5, y = 0.5, label = "No rules with regulators", size = 5) +
-           standardTheme +
-           labs(title = "Sign Consistency Analysis - No Regulator Rules"))
-  }
-  
-  ggplot(regRules, aes(x = sign_consistency, fill = method_category)) +
-    geom_histogram(bins = 20, alpha = 0.7, color = "white") +
-    scale_fill_brewer(palette = "Set2", name = "Method") +
-    scale_x_continuous(limits = c(0, 1)) +
-    labs(
-      title = "Sign Consistency Analysis",
-      subtitle = paste0("Distribution of sign consistency scores (n = ", nrow(regRules), " rules with regulators)"),
-      x = "Sign Consistency Score (0 = poor, 1 = perfect)",
-      y = "Number of Rules",
-      caption = "Measures how well inferred rules match SCENIC regulatory directions"
-    ) +
-    standardTheme +
-    facet_wrap(~method_category, scales = "free_y") +
-    theme(strip.text = element_text(face = "bold"))
-}
-
-#' Plot regulator weight distribution
-plotRegulatorWeightDistribution <- function(ruleStats, edges, standardTheme) {
-  
-  if (nrow(edges) == 0) {
-    return(ggplot() + 
-           annotate("text", x = 0.5, y = 0.5, label = "No edge data available", size = 5) +
-           standardTheme +
-           labs(title = "Regulator Weight Distribution - No Data"))
-  }
-  
-  # Calculate weights for all edges (using same logic as booleanManager)
-  edges$abs_corr <- abs(edges$corr)
-  edges$motif_bonus <- ifelse(!is.na(edges$motifConfidence), edges$motifConfidence, 0)
-  edges$nes_bonus <- ifelse(!is.na(edges$NES), pmax(0, edges$NES / 5), 0)
-  edges$prior_bonus <- ifelse(!is.na(edges$hasMotif) & edges$hasMotif == TRUE, 0.1, 0)
-  
-  edges$composite_weight <- edges$abs_corr + 
-                           (edges$motif_bonus * 0.3) + 
-                           (edges$nes_bonus * 0.2) + 
-                           edges$prior_bonus
-  
-  # Separate used vs unused regulators
-  used_targets <- ruleStats$gene[ruleStats$n_regulators > 0]
-  edges$used_in_rules <- edges$Target %in% used_targets
-  
-  ggplot(edges, aes(x = composite_weight, fill = used_in_rules)) +
-    geom_histogram(bins = 30, alpha = 0.7, color = "white") +
-    scale_fill_manual(values = c("FALSE" = "lightgray", "TRUE" = "steelblue"),
-                      name = "Used in Rules",
-                      labels = c("Not Used", "Used")) +
-    labs(
-      title = "Regulator Weight Distribution",
-      subtitle = paste0("Composite weights for ", nrow(edges), " regulatory relationships"),
-      x = "Composite Weight (correlation + motif + NES + prior)",
-      y = "Number of Regulatory Edges",
-      caption = "Higher weights indicate stronger evidence for regulatory relationship"
-    ) +
-    standardTheme
-}
-
 #' Plot method comparison analysis
+#'
+#' Creates bar chart comparing mean performance across different rule inference
+#' methods, showing sample sizes and relative performance.
+#'
+#' @param ruleStats Data frame with rule statistics from extractEnhancedRuleStatistics
+#' @param standardTheme ggplot2 theme object for consistent plot styling
+#' @return ggplot2 object with method comparison bar chart
 plotMethodComparisonAnalysis <- function(ruleStats, standardTheme) {
   
   if (nrow(ruleStats) == 0) {
@@ -379,7 +212,6 @@ plotMethodComparisonAnalysis <- function(ruleStats, standardTheme) {
     summarise(
       n_rules = n(),
       mean_score = mean(score, na.rm = TRUE),
-      median_score = median(score, na.rm = TRUE),
       high_quality = sum(score >= 0.75, na.rm = TRUE),
       .groups = "drop"
     ) %>%
@@ -388,36 +220,30 @@ plotMethodComparisonAnalysis <- function(ruleStats, standardTheme) {
       method_category = reorder(method_category, mean_score)
     )
   
-  p1 <- ggplot(methodSummary, aes(x = method_category, y = mean_score)) +
+  ggplot(methodSummary, aes(x = method_category, y = mean_score)) +
     geom_col(fill = "steelblue", alpha = 0.7) +
     geom_text(aes(label = paste0("n=", n_rules)), 
               vjust = -0.5, size = 3) +
     scale_y_continuous(limits = c(0, 1)) +
     labs(
       title = "Method Performance Comparison",
+      subtitle = "Mean rule quality score by inference method",
       x = "Method Category",
-      y = "Mean Rule Quality Score"
+      y = "Mean Rule Quality Score",
+      caption = "Numbers above bars show sample size for each method"
     ) +
     standardTheme +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  
-  p2 <- ggplot(methodSummary, aes(x = method_category, y = high_quality_pct)) +
-    geom_col(fill = "darkgreen", alpha = 0.7) +
-    geom_text(aes(label = paste0(round(high_quality_pct, 1), "%")), 
-              vjust = -0.5, size = 3) +
-    scale_y_continuous(limits = c(0, 100)) +
-    labs(
-      title = "High Quality Rules by Method",
-      x = "Method Category", 
-      y = "% Rules with Score ≥ 0.75"
-    ) +
-    standardTheme +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  
-  gridExtra::grid.arrange(p1, p2, ncol = 2, top = "Method Comparison Analysis")
 }
 
 #' Plot network complexity overview
+#'
+#' Creates bar chart showing distribution of rules by number of regulators,
+#' providing insight into network complexity and rule structure.
+#'
+#' @param ruleStats Data frame with rule statistics from extractEnhancedRuleStatistics
+#' @param standardTheme ggplot2 theme object for consistent plot styling
+#' @return ggplot2 object with complexity distribution bar chart
 plotNetworkComplexityOverview <- function(ruleStats, standardTheme) {
   
   if (nrow(ruleStats) == 0) {
@@ -434,52 +260,39 @@ plotNetworkComplexityOverview <- function(ruleStats, standardTheme) {
                    function(x) sum(ruleStats$n_regulators == x, na.rm = TRUE))
   )
   
-  logic_summary <- data.frame(
-    logic_type = c("AND only", "OR only", "NOT only", "Mixed", "Simple"),
-    count = c(
-      sum(ruleStats$has_and & !ruleStats$has_or & !ruleStats$has_not),
-      sum(!ruleStats$has_and & ruleStats$has_or & !ruleStats$has_not),
-      sum(!ruleStats$has_and & !ruleStats$has_or & ruleStats$has_not),
-      sum((ruleStats$has_and + ruleStats$has_or + ruleStats$has_not) >= 2),
-      sum(!ruleStats$has_and & !ruleStats$has_or & !ruleStats$has_not)
-    )
-  )
-  
-  p1 <- ggplot(regulator_dist, aes(x = factor(n_regulators), y = count)) +
+  ggplot(regulator_dist, aes(x = factor(n_regulators), y = count)) +
     geom_col(fill = "steelblue", alpha = 0.7) +
     geom_text(aes(label = count), vjust = -0.5, size = 3) +
     labs(
-      title = "Rules by Number of Regulators",
-      x = "Number of Regulators",
-      y = "Number of Rules"
+      title = "Network Complexity: Rules by Number of Regulators",
+      subtitle = paste0("Distribution across ", nrow(ruleStats), " total rules"),
+      x = "Number of Regulators per Rule",
+      y = "Number of Rules",
+      caption = "Higher regulator counts indicate more complex regulatory logic"
     ) +
     standardTheme
-  
-  p2 <- ggplot(logic_summary[logic_summary$count > 0, ], aes(x = reorder(logic_type, count), y = count)) +
-    geom_col(fill = "darkgreen", alpha = 0.7) +
-    geom_text(aes(label = count), hjust = -0.2, size = 3) +
-    coord_flip() +
-    labs(
-      title = "Rules by Logic Type",
-      x = "Logic Type",
-      y = "Number of Rules"
-    ) +
-    standardTheme
-  
-  gridExtra::grid.arrange(p1, p2, ncol = 2, top = "Network Complexity Overview")
 }
 
 # =============================================================================
-# Enhanced Text Reports
+# Text Reports
 # =============================================================================
 
 #' Generate enhanced text report with SCENIC integration
+#'
+#' Creates comprehensive text summary of Boolean rule inference results
+#' including overall statistics, method performance breakdown, and key findings.
+#'
+#' @param ruleStats Data frame with rule statistics from extractEnhancedRuleStatistics
+#' @param boolRules List of Boolean rules with metadata (used for additional analysis)
+#' @param edges Data frame with SCENIC metadata (used for regulatory network context)
+#' @param filename Character string with output file path for text report
+#' @return NULL (writes file as side effect)
 generateEnhancedTextReport <- function(ruleStats, boolRules, edges, filename) {
   
   sink(filename)
   
   cat("=============================================================================\n")
-  cat("ENHANCED BOOLEAN RULE INFERENCE REPORT (SCENIC-INTEGRATED)\n")
+  cat("BOOLEAN RULE INFERENCE REPORT (SCENIC-INTEGRATED)\n")
   cat("Generated:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")
   cat("=============================================================================\n\n")
   
@@ -489,9 +302,9 @@ generateEnhancedTextReport <- function(ruleStats, boolRules, edges, filename) {
   if (nrow(ruleStats) > 0) {
     cat("- Mean rule quality:", round(mean(ruleStats$score, na.rm = TRUE), 3), "\n")
     cat("- Median rule quality:", round(median(ruleStats$score, na.rm = TRUE), 3), "\n")
-    cat("- Rules with quality ≥ 0.75:", sum(ruleStats$score >= 0.75, na.rm = TRUE), 
-        "(", round(100 * sum(ruleStats$score >= 0.75, na.rm = TRUE) / nrow(ruleStats), 1), "%)\n")
-    cat("- Rules with quality ≥ 0.9:", sum(ruleStats$score >= 0.9, na.rm = TRUE), 
+    cat("- Rules with quality >= 0.75:", sum(ruleStats$score >= 0.75, na.rm = TRUE), 
+        "(", round(100 * sum(ruleStats$score >= 0.75, na.rm = TRUE) / nrow(ruleStats), 1), "%)")
+    cat("- Rules with quality >= 0.9:", sum(ruleStats$score >= 0.9, na.rm = TRUE), 
         "(", round(100 * sum(ruleStats$score >= 0.9, na.rm = TRUE) / nrow(ruleStats), 1), "%)\n\n")
   }
   
@@ -503,25 +316,8 @@ generateEnhancedTextReport <- function(ruleStats, boolRules, edges, filename) {
       method_rules <- ruleStats[ruleStats$method_category == method, ]
       cat("- ", method, ":", methodCounts[method], "rules\n")
       cat("  • Mean quality:", round(mean(method_rules$score, na.rm = TRUE), 3), "\n")
-      cat("  • High quality (≥0.75):", sum(method_rules$score >= 0.75, na.rm = TRUE), 
+      cat("  • High quality (>=0.75):", sum(method_rules$score >= 0.75, na.rm = TRUE), 
           "/", nrow(method_rules), "\n")
-    }
-    cat("\n")
-  }
-  
-  # SCENIC Integration Analysis
-  if (nrow(ruleStats) > 0 && "scenic_confidence" %in% colnames(ruleStats)) {
-    cat("SCENIC INTEGRATION ANALYSIS:\n")
-    cat("- Rules with SCENIC regulators:", sum(ruleStats$has_scenic_regs), "/", nrow(ruleStats), "\n")
-    cat("- Mean SCENIC confidence:", round(mean(ruleStats$scenic_confidence, na.rm = TRUE), 3), "\n")
-    
-    if ("sign_consistency" %in% colnames(ruleStats)) {
-      reg_rules <- ruleStats[ruleStats$n_regulators > 0, ]
-      if (nrow(reg_rules) > 0) {
-        cat("- Mean sign consistency:", round(mean(reg_rules$sign_consistency, na.rm = TRUE), 3), "\n")
-        cat("- Perfect sign consistency:", sum(reg_rules$sign_consistency >= 0.99, na.rm = TRUE), 
-            "/", nrow(reg_rules), "\n")
-      }
     }
     cat("\n")
   }
@@ -552,10 +348,10 @@ generateEnhancedTextReport <- function(ruleStats, boolRules, edges, filename) {
   
   # SCENIC Edge Analysis
   if (nrow(edges) > 0) {
-    cat("SCENIC EDGE ANALYSIS:\n")
+    cat("SCENIC REGULATORY NETWORK CONTEXT:\n")
     cat("- Total regulatory edges:", nrow(edges), "\n")
-    cat("- Unique TFs:", length(unique(edges$TF)), "\n")
-    cat("- Unique targets:", length(unique(edges$Target)), "\n")
+    cat("- Unique transcription factors:", length(unique(edges$TF)), "\n")
+    cat("- Unique target genes:", length(unique(edges$Target)), "\n")
     
     if ("regType" %in% colnames(edges)) {
       regTypeCounts <- table(edges$regType, useNA = "ifany")
@@ -572,59 +368,24 @@ generateEnhancedTextReport <- function(ruleStats, boolRules, edges, filename) {
     cat("\n")
   }
   
+  cat("=============================================================================\n")
+  cat("END OF REPORT\n")
+  cat("=============================================================================\n")
+  
   sink()
   
   message("Enhanced text report saved to: ", filename)
 }
 
-#' Generate summary statistics file
-generateSummaryStatistics <- function(ruleStats, boolRules, edges, filename) {
-  
-  sink(filename)
-  
-  cat("BOOLEAN RULE INFERENCE SUMMARY STATISTICS\n")
-  cat("=========================================\n")
-  cat("Generated:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n\n")
-  
-  if (nrow(ruleStats) > 0) {
-    cat("RULE QUALITY METRICS:\n")
-    cat("Count:", nrow(ruleStats), "\n")
-    cat("Mean:", round(mean(ruleStats$score, na.rm = TRUE), 4), "\n")
-    cat("Median:", round(median(ruleStats$score, na.rm = TRUE), 4), "\n")
-    cat("SD:", round(sd(ruleStats$score, na.rm = TRUE), 4), "\n")
-    cat("Min:", round(min(ruleStats$score, na.rm = TRUE), 4), "\n")
-    cat("Max:", round(max(ruleStats$score, na.rm = TRUE), 4), "\n")
-    cat("Q1:", round(quantile(ruleStats$score, 0.25, na.rm = TRUE), 4), "\n")
-    cat("Q3:", round(quantile(ruleStats$score, 0.75, na.rm = TRUE), 4), "\n\n")
-    
-    cat("QUALITY THRESHOLDS:\n")
-    cat("≥0.5:", sum(ruleStats$score >= 0.5, na.rm = TRUE), "/", nrow(ruleStats), 
-        "(", round(100 * mean(ruleStats$score >= 0.5, na.rm = TRUE), 1), "%)\n")
-    cat("≥0.75:", sum(ruleStats$score >= 0.75, na.rm = TRUE), "/", nrow(ruleStats), 
-        "(", round(100 * mean(ruleStats$score >= 0.75, na.rm = TRUE), 1), "%)\n")
-    cat("≥0.9:", sum(ruleStats$score >= 0.9, na.rm = TRUE), "/", nrow(ruleStats), 
-        "(", round(100 * mean(ruleStats$score >= 0.9, na.rm = TRUE), 1), "%)\n\n")
-  }
-  
-  if (nrow(edges) > 0) {
-    cat("REGULATORY NETWORK METRICS:\n")
-    cat("Total edges:", nrow(edges), "\n")
-    cat("Unique TFs:", length(unique(edges$TF)), "\n")
-    cat("Unique targets:", length(unique(edges$Target)), "\n")
-    cat("Mean |correlation|:", round(mean(abs(edges$corr), na.rm = TRUE), 4), "\n")
-    
-    if ("motifConfidence" %in% colnames(edges)) {
-      cat("Mean motif confidence:", round(mean(edges$motifConfidence, na.rm = TRUE), 4), "\n")
-    }
-    if ("NES" %in% colnames(edges)) {
-      cat("Mean NES score:", round(mean(edges$NES, na.rm = TRUE), 4), "\n")
-    }
-  }
-  
-  sink()
-  
-  message("Summary statistics saved to: ", filename)
-}
+# =============================================================================
+# Utility Functions
+# =============================================================================
 
-# Helper function for null coalescing
+#' Null coalescing operator
+#'
+#' Returns the right-hand side if left-hand side is NULL, empty, or NA.
+#'
+#' @param x Left-hand side value
+#' @param y Right-hand side fallback value
+#' @return x if valid, otherwise y
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || is.na(x)) y else x
