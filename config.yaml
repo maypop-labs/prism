@@ -1,32 +1,39 @@
 # #############################################################################
-#
 # config.yaml
+# 
+# Primary configuration file for the Maypop Labs PRISM project (Pseudotime 
+# Reversion via In Silico Modeling). This file controls all analysis parameters
+# for the Boolean network aging analysis pipeline.
 #
-# This is the primary configuration file for the Maypop Labs PRISM project.
-# If nothing else, you'll possibly need to change the following:
-#
-#   rootPath: Change this to the directory where your cellranger_counts folder
-#       is located. Results will also be written to this path.
-#
-#   rcisTargetPath: This is the folder where databases are stored for use by
-#       RcisTarget, SCENIC, and GENIE3 for GRN creation.
-#
-#   ages: This is a vector containing the chronological age of each cell
-#       sample.
-#
-#   donorIDs: This is a vector containing the name for each sample.
-#
-#   grnScenicSpecies: Only change this if you are using sample from a source
-#       other than human. Refer to the online RcisTarget and SCENIC
-#       documentation for more details.
-#
+# Quick Start: If nothing else, you'll need to change:
+#   - rootPath: Directory containing cellranger_counts folder
+#   - rcisTargetPath: Directory containing RcisTarget databases  
+#   - ages: Chronological ages of cell samples
+#   - donorIDs: Sample identifiers matching your data
 # #############################################################################
 
-# File Paths
+# @doc: File_Paths
+# @info: Core directory paths that define where data is read from and written to
+
+# @param: rootPath
+# @type: string (path)
+# @description: Base directory containing cellranger_counts folder and where all analysis results are written.
+# Must contain cellranger_counts subfolder with 10X Genomics output files.
 rootPath: "E:/datasets/omics/skin/"
+
+# @param: rcisTargetPath
+# @type: string (path)
+# @description: Directory containing RcisTarget databases for SCENIC/GENIE3 gene regulatory network analysis.
+# Must contain .feather database files specified in grnScenicDBs parameter.
 rcisTargetPath: "E:/var/rcistarget/"
 
-# Experiment outline
+# @doc: Experiment_Design
+# @info: Sample metadata and experimental design parameters
+
+# @param: ages
+# @type: list[integer]
+# @description: Chronological ages in years corresponding to each donor sample in the experiment.
+# Must match the number and order of donorIDs.
 ages:
   - 18
   - 22
@@ -37,6 +44,11 @@ ages:
   - 70
   - 73
   - 76
+
+# @param: donorIDs
+# @type: list[string]
+# @description: Unique identifiers for each donor sample used in file naming and metadata tracking.
+# Must match the number and order of ages, used to locate cellranger_counts subfolders.
 donorIDs:
   - "18yo"
   - "22yo"
@@ -48,80 +60,399 @@ donorIDs:
   - "73yo"
   - "76yo"
   
-# Experiment parameters
+# @doc: System_Resources
+# @info: System resource allocation and computation environment settings
+
+# @param: cores
+# @type: integer
+# @description: Number of CPU cores to use for parallel processing operations.
+# @suggested: [1, 2, 4, 6, 8, 12, 16]
+# @rationale: 1 core for testing/debugging, 2 cores for basic processing, 4 cores for balanced performance, 6-8 cores for compute-intensive analyses, 12-16 cores for high-performance systems. Values above system core count provide no benefit.
+# @default: 1
 cores: 1
+
+# @param: saveResults
+# @type: boolean
+# @description: Master switch controlling whether intermediate and final results are saved to disk.
+# Set to false for testing or when disk space is limited.
+# @default: true
 saveResults: true
+
+# @param: verbose
+# @type: boolean
+# @description: Controls verbosity of console output messages during pipeline execution.
+# Recommended for debugging and progress monitoring.
+# @default: true
 verbose: true
 
-# Plot parameters
-figDPI: 300
-figHeight: 5
-figWidth: 6.5
-hjust: 0.5
-networkLayout: "lgl"
-plotAlpha: 0.75
-pointSize: 1.5
-strokeSize: 0.33
-plotBackground: "white"
-panelBackground: "white"
+# @param: randomSeed
+# @type: integer
+# @description: Random seed for ensuring reproducible results across pipeline runs.
+# Change this value to generate different random samplings while maintaining reproducibility.
+# @default: 12345
+randomSeed: 12345
 
-# Seurat
+# @param: maxMemoryGB
+# @type: integer
+# @description: Maximum memory limit in gigabytes for R processes during analysis.
+# Should be set below total system RAM to prevent system instability.
+# @suggested: [4, 8, 16, 24, 32, 64, 128]
+# @rationale: 4GB for minimal systems, 8GB for small datasets, 16GB for typical single-cell analyses, 24-32GB for large studies, 64-128GB for very large datasets. Should be 2-4GB less than total system RAM.
+maxMemoryGB: 96
+
+# @doc: Visualization
+# @info: Plot generation and formatting parameters for all graphical outputs
+
+# @param: figDPI
+# @type: integer
+# @description: Resolution in dots per inch for saved plot files.
+# Higher values create larger files but better print quality.
+# @suggested: [72, 96, 150, 300, 450, 600, 1200]
+# @rationale: 72-96 DPI for web/screen display, 150 DPI for presentations, 300 DPI for standard publication quality, 450-600 DPI for high-quality printing, 1200 DPI for vector-like quality
+figDPI: 300
+
+# @param: figHeight
+# @type: float
+# @description: Default height in inches for saved plot files.
+# @suggested: [3, 4, 5, 6, 7, 8]
+# @rationale: 3 inches for very compact figures, 4 inches for compact single panels, 5 inches for standard plots, 6 inches for multi-panel figures, 7-8 inches for tall or detailed visualizations
+figHeight: 5
+
+# @param: figWidth
+# @type: float
+# @description: Default width in inches for saved plot files.
+# @suggested: [4, 5, 6, 6.5, 7, 8, 10, 12]
+# @rationale: 4-5 inches for narrow single-column figures, 6 inches for standard single-column, 6.5-7 inches for balanced plots, 8 inches for wide figures, 10-12 inches for multi-panel or poster figures
+figWidth: 6.5
+
+# @param: networkLayout
+# @type: string
+# @description: Layout algorithm for network visualization plots.
+# Options include "lgl", "fr", "kk", "circle" depending on igraph availability.
+networkLayout: "lgl"
+
+# @param: plotAlpha
+# @type: float
+# @description: Transparency level for data points in scatter plots (0=transparent, 1=opaque).
+# @suggested: [0.6, 0.75, 0.9]
+# @rationale: 0.6 for dense data with many overlapping points, 0.75 for standard plots, 0.9 for sparse data where points should be clearly visible
+plotAlpha: 0.75
+
+# @param: pointSize
+# @type: float
+# @description: Size of data points in scatter plots and dimensionality reduction plots.
+# @suggested: [1.0, 1.5, 2.0]
+# @rationale: 1.0 for datasets with many points, 1.5 for standard visualization, 2.0 for sparse datasets or presentation figures
+pointSize: 1.5
+
+# @doc: Seurat_QualityControl
+# @info: Seurat preprocessing and quality control parameters for single-cell data
+
+# @param: seuratMaxPercentMtDNA
+# @type: integer
+# @description: Maximum percentage of mitochondrial gene expression allowed per cell during quality control.
+# Cells exceeding this threshold are filtered out as potentially dying/damaged.
+# @suggested: [10, 15, 20]
+# @rationale: 10% for stringent filtering in healthy tissues, 15% for standard filtering, 20% for stressed/diseased tissues with expected mitochondrial stress
 seuratMaxPercentMtDNA: 15
+
+# @param: seuratMinNumberOfRNAFeatures
+# @type: integer
+# @description: Minimum number of genes that must be detected per cell to pass quality control.
+# Cells below this threshold are filtered out as potentially low-quality.
+# @suggested: [200, 500, 1000]
+# @rationale: 200 for permissive filtering, 500 for standard quality control, 1000 for stringent filtering of high-quality cells only
 seuratMinNumberOfRNAFeatures: 500
+
+# @param: seuratNumberOfFeatures
+# @type: integer
+# @description: Number of highly variable genes to identify and use for downstream dimensionality reduction.
+# Standard value for single-cell analysis, balances information content with computational efficiency.
+# @suggested: [500, 1000, 1500, 2000, 2500, 3000, 4000, 5000]
+# @rationale: 500 for very focused analysis, 1000 for targeted studies, 1500-2000 for standard workflows, 2500-3000 for comprehensive analysis, 4000-5000 for maximum information retention with higher computational cost
 seuratNumberOfFeatures: 2000
+
+# @param: seuratScaleFactor
+# @type: integer
+# @description: Scaling factor for log-normalization of gene expression counts.
+# Standard value that normalizes to counts per 100,000 total counts per cell.
+# @default: 10000
 seuratScaleFactor: 100000
 
-# SingleR
+# @doc: SingleR_CellTyping
+# @info: SingleR cell type annotation parameters
+
+# @param: singleRMinimumNumberOfCells
+# @type: integer
+# @description: Minimum number of cells required for a cell type to be included in downstream analysis.
+# Cell types with fewer cells are excluded to ensure statistical power.
+# @suggested: [500, 1000, 2000]
+# @rationale: 500 for exploratory analysis of rare cell types, 1000 for standard analysis with good statistical power, 2000 for robust downstream modeling
 singleRMinimumNumberOfCells: 1000
+
+# @param: singleRNumberOfFeatures
+# @type: integer
+# @description: Number of highly variable genes to use for cell type-specific analysis.
+# Used for within-cell-type dimensionality reduction and clustering.
+# @suggested: [500, 1000, 1500, 2000, 2500, 3000, 4000]
+# @rationale: 500 for very focused cell type analysis, 1000 for targeted studies, 1500-2000 for standard resolution, 2500-3000 for detailed analysis, 4000 for maximum subtype resolution
 singleRNumberOfFeatures: 2000
 
-# Pseudotime
+# @doc: Pseudotime_Analysis
+# @info: Monocle3 pseudotime trajectory inference parameters
+
+# @param: pseudotimeMinAgeCorrelation
+# @type: float
+# @description: Minimum Pearson correlation required between pseudotime and chronological age for trajectory validation.
+# Trajectories below this correlation are rejected as not representing aging.
+# @suggested: [0.4, 0.5, 0.6]
+# @rationale: 0.4 for exploratory analysis, 0.5 for standard aging studies, 0.6 for stringent validation of age-related trajectories
 pseudotimeMinAgeCorrelation: 0.5
 
-# GeneSwitches
-geneSwitchesCutOff: 0.20            # fixed binarization cutoff
-geneSwitchesRho: 0.40               # |Spearman| threshold
-geneSwitchesMinDetect: 0.05         # ≥5% cells > 0
-geneSwitchesVarThreshold: 0.01      # minimal variance
-geneSwitchesSpearmanFilter: TRUE    # turn Spearman prefilter on/off
-geneSwitchesFixedCutoff: FALSE      # turn on/off global fixed cutoff
+# @doc: GeneSwitches_Analysis
+# @info: GeneSwitches logistic modeling parameters for switch-like gene behavior detection
 
-# Gene regulatory Network (GRN)
-grnFromScratch: FALSE
+# @param: geneSwitchesCutOff
+# @type: float
+# @description: Fixed binarization threshold for converting continuous expression to binary states.
+# Genes above this percentile are considered "ON", below are "OFF".
+# @suggested: [0.15, 0.20, 0.25]
+# @rationale: 0.15 for sensitive detection of lowly expressed switches, 0.20 for standard binarization, 0.25 for conservative detection of highly expressed switches
+geneSwitchesCutOff: 0.20
+
+# @param: geneSwitchesFixedCutoff
+# @type: boolean
+# @description: Whether to use fixed cutoff (true) or mixture model (false) for binarization.
+# Fixed cutoff is more reproducible, mixture model adapts to data distribution.
+# @suggested: [true, false]
+# @rationale: true for consistent thresholding across datasets, false for data-adaptive binarization using mixture models
+geneSwitchesFixedCutoff: false
+
+# @param: geneSwitchesMinDetect
+# @type: float
+# @description: Minimum fraction of cells that must express a gene (counts > 0) for inclusion in analysis.
+# Filters out genes expressed in very few cells.
+# @suggested: [0.03, 0.05, 0.10]
+# @rationale: 0.03 for rare cell type markers, 0.05 for standard filtering, 0.10 for widely expressed genes only
+geneSwitchesMinDetect: 0.05
+
+# @param: geneSwitchesFdrThreshold
+# @type: float
+# @description: Maximum false discovery rate (FDR/q-value) for retaining switch genes in final results.
+# Controls statistical significance of logistic regression fits for switch-like behavior.
+# @suggested: [0.01, 0.05, 0.10]
+# @rationale: 0.01 for very stringent multiple testing correction, 0.05 for standard statistical significance, 0.10 for exploratory analysis with relaxed significance
+geneSwitchesFdrThreshold: 0.05
+
+# @doc: Gene_Regulatory_Network
+# @info: SCENIC/GENIE3 gene regulatory network inference parameters
+
+# @param: grnFromScratch
+# @type: boolean
+# @description: Whether to rebuild the entire GRN from scratch or attempt to recover previous SCENIC results.
+# Set to true to force complete regeneration, false to resume from checkpoints.
+grnFromScratch: false
+
+# @param: grnPositiveThreshold
+# @type: float
+# @description: Minimum positive correlation threshold for retaining activating regulatory edges in the network.
+# TF-target pairs with correlation below this are filtered out.
+# @suggested: [0.3, 0.4, 0.5]
+# @rationale: 0.3 for comprehensive networks, 0.4 for balanced filtering, 0.5 for high-confidence interactions only
 grnPositiveThreshold: 0.4
+
+# @param: grnNegativeThreshold
+# @type: float
+# @description: Minimum absolute negative correlation threshold for retaining repressive regulatory edges.
+# TF-target pairs with |negative correlation| below this are filtered out.
+# @suggested: [0.3, 0.4, 0.5]
+# @rationale: 0.3 for comprehensive repressive networks, 0.4 for balanced filtering, 0.5 for strong repressive interactions only
 grnNegativeThreshold: 0.4
-grnOnlyPositiveCorr: FALSE
-grnRemoveIsolatedNodes: TRUE
+
+# @param: grnOnlyPositiveCorr
+# @type: boolean
+# @description: Whether to retain only positive correlations (activating relationships) in the final network.
+# Set to true to exclude all repressive interactions.
+grnOnlyPositiveCorr: false
+
+# @param: grnRemoveIsolatedNodes
+# @type: boolean
+# @description: Whether to remove genes with no regulatory connections from the final network.
+# Isolated nodes don't contribute to network dynamics.
+grnRemoveIsolatedNodes: true
+
+# @param: grnScenicDBs
+# @type: list[string]
+# @description: RcisTarget database files for transcription factor motif analysis.
+# Files must exist in rcisTargetPath directory.
 grnScenicDBs:
   - "hg38__refseq-r80__500bp_up_and_100bp_down_tss.mc9nr.feather"
   - "hg38__refseq-r80__10kb_up_and_down_tss.mc9nr.feather"
+
+# @param: grnScenicSpecies
+# @type: string
+# @description: Species identifier for SCENIC gene name conversion and motif analysis.
+# Use "hgnc" for human, "mgi" for mouse, see SCENIC documentation for others.
 grnScenicSpecies: "hgnc"
-grnCorrWeight: 0.4                    # Weight for correlation score
-grnGenie3Weight: 0.4                  # Weight for GENIE3 importance
-grnMotifWeight: 0.2                   # Weight for motif confidence
-grnHighMotifThreshold: 0.5            # High confidence motif threshold
-grnMediumMotifThreshold: 0.2          # Medium confidence motif threshold
-grnMotifCorrAlignThreshold: 0.1       # Correlation alignment threshold
-grnPriorThreshold: 0.3                # Minimum prior strength to keep weak correlation edges
-grnSwitchQualityThreshold: 0.1        # Minimum pseudoR² for switch genes
-grnPreserveIntermediates: TRUE        # Keep SCENIC intermediate files
-grnCleanupAfterPreservation: TRUE     # Delete original int/ and output/ after preservation
 
-# Boolean Rules and BoolNet
+# @param: grnPriorThreshold
+# @type: float
+# @description: Minimum prior knowledge strength required to retain weak correlation edges in the network.
+# Allows retention of biologically supported edges even with weak correlations.
+# @suggested: [0.2, 0.3, 0.4]
+# @rationale: 0.2 for incorporating weak but biologically supported edges, 0.3 for moderate prior support, 0.4 for strong prior evidence only
+grnPriorThreshold: 0.3
+
+# @param: grnSwitchQualityThreshold
+# @type: float
+# @description: Minimum pseudo-R² value required for genes to be considered high-quality switches.
+# Filters switch genes by goodness-of-fit in logistic regression.
+# @suggested: [0.05, 0.1, 0.15]
+# @rationale: 0.05 for permissive inclusion of switch genes, 0.1 for standard quality filtering, 0.15 for high-quality switches only
+grnSwitchQualityThreshold: 0.1
+
+# @param: grnHighMotifThreshold
+# @type: float
+# @description: Threshold for high motif confidence when overriding weak correlations.
+# Higher values require stronger motif evidence to override correlations.
+# @suggested: [0.7, 0.8, 0.9]
+# @rationale: 0.7 for permissive motif-driven edges, 0.8 for standard confidence, 0.9 for high-confidence motif support only
+grnHighMotifThreshold: 0.8
+
+# @param: grnMediumMotifThreshold
+# @type: float
+# @description: Threshold for medium motif confidence used as correlation tiebreaker.
+# Used when correlation evidence is ambiguous.
+# @suggested: [0.4, 0.5, 0.6]
+# @rationale: 0.4 for inclusive motif support, 0.5 for balanced evidence, 0.6 for conservative motif validation
+grnMediumMotifThreshold: 0.5
+
+# @param: grnMotifCorrAlignThreshold
+# @type: float
+# @description: Minimum correlation magnitude required for motif-correlation alignment.
+# Prevents motif assignment when correlation conflicts strongly.
+# @suggested: [0.1, 0.2, 0.3]
+# @rationale: 0.1 for weak correlation alignment, 0.2 for moderate alignment, 0.3 for strong correlation requirement
+grnMotifCorrAlignThreshold: 0.2
+
+# @param: grnCorrWeight
+# @type: float
+# @description: Weight for correlation component in composite edge scoring.
+# Should sum to 1.0 with grnGenie3Weight and grnMotifWeight.
+# @suggested: [0.3, 0.4, 0.5]
+# @rationale: 0.3 for data-driven approach, 0.4 for balanced weighting, 0.5 for correlation-dominated scoring
+grnCorrWeight: 0.4
+
+# @param: grnGenie3Weight
+# @type: float
+# @description: Weight for GENIE3 importance component in composite edge scoring.
+# Should sum to 1.0 with grnCorrWeight and grnMotifWeight.
+# @suggested: [0.3, 0.4, 0.5]
+# @rationale: 0.3 for supplementary GENIE3 evidence, 0.4 for balanced weighting, 0.5 for GENIE3-dominated scoring
+grnGenie3Weight: 0.4
+
+# @param: grnMotifWeight
+# @type: float
+# @description: Weight for motif confidence component in composite edge scoring.
+# Should sum to 1.0 with grnCorrWeight and grnGenie3Weight.
+# @suggested: [0.1, 0.2, 0.3]
+# @rationale: 0.1 for minimal motif influence, 0.2 for moderate biological validation, 0.3 for strong motif emphasis
+grnMotifWeight: 0.2
+
+# @param: grnPreserveIntermediates
+# @type: boolean
+# @description: Whether to preserve SCENIC intermediate files for debugging and resumption.
+# Useful for long-running analyses that may need to be resumed.
+grnPreserveIntermediates: true
+
+# @param: grnCleanupAfterPreservation
+# @type: boolean
+# @description: Whether to delete original SCENIC directories after preserving them in trajectory-specific locations.
+# Saves disk space while preserving ability to resume analysis.
+grnCleanupAfterPreservation: true
+
+# @doc: Boolean_Network
+# @info: Boolean network construction and BoolNet analysis parameters
+
+# @param: boolCheckpointInterval
+# @type: integer
+# @description: Frequency of progress checkpoints during Boolean rule learning (every N genes).
+# More frequent checkpoints slow analysis but provide better recovery options.
+# @suggested: [10, 25, 50]
+# @rationale: 10 for frequent checkpoints during development, 25 for standard progress tracking, 50 for minimal overhead in production runs
 boolCheckpointInterval: 25
-boolKValue: 0
-boolMaxRegulators: 4
-boolMinScore: 0.05
-boolMinStates: 10
-boolExhaustiveLimit: 20
-boolMaxSamples: 1000
-boolWeights:
-  correlation: 1.0
-  motif_confidence: 0.3
-  scenic_importance: 0.2
-  prior_knowledge: 0.1
 
-# Attractor Analysis
-attInitialThreshold: 0.10
+# @param: boolKValue
+# @type: integer
+# @description: Step size for temporal offset between regulator and target gene states in rule learning.
+# 0 means simultaneous states, higher values introduce time delays.
+# @suggested: [0, 1, 2]
+# @rationale: 0 for simultaneous regulation, 1 for single time-step delays, 2 for longer regulatory delays. Higher values require more data.
+boolKValue: 1
+
+# @param: boolMaxRegulators
+# @type: integer
+# @description: Maximum number of input regulators allowed per Boolean rule to control complexity.
+# Higher values increase computational cost exponentially.
+# @suggested: [2, 3, 4]
+# @rationale: 2 for simple interpretable rules, 3 for balanced complexity, 4 for comprehensive regulatory logic. Higher values increase computational cost exponentially.
+boolMaxRegulators: 3
+
+# @param: boolMinScore
+# @type: float
+# @description: Minimum agreement score required for Boolean rules to be accepted during learning.
+# Lower values allow more permissive rules, higher values enforce stricter agreement.
+# @suggested: [0.03, 0.05, 0.10]
+# @rationale: 0.03 for permissive rule acceptance, 0.05 for standard filtering, 0.10 for high-quality rules only
+boolMinScore: 0.05
+
+# @param: boolMinStates
+# @type: integer
+# @description: Minimum number of input-output state pairs required to learn a Boolean rule.
+# Ensures sufficient data for reliable rule inference.
+# @suggested: [5, 10, 20]
+# @rationale: 5 for exploratory analysis with limited data, 10 for standard rule learning, 20 for robust statistical inference
+boolMinStates: 10
+
+# @param: boolExhaustiveLimit
+# @type: integer
+# @description: Maximum number of genes for which exhaustive attractor search is performed.
+# Above this limit, random sampling is used to manage computational cost.
+# @suggested: [15, 20, 25]
+# @rationale: 15 for faster analysis, 20 for standard thoroughness, 25 for comprehensive small networks. Above this, computational cost becomes prohibitive.
+boolExhaustiveLimit: 20
+
+# @param: boolMaxSamples
+# @type: integer
+# @description: Maximum number of random samples used for attractor search in large networks.
+# Higher values improve accuracy but increase computation time.
+# @suggested: [100, 250, 500, 1000, 1500, 2000, 5000, 10000]
+# @rationale: 100-250 for quick testing, 500 for rapid analysis, 1000 for standard accuracy, 1500-2000 for thorough sampling, 5000-10000 for exhaustive analysis of complex networks
+boolMaxSamples: 1000
+
+# @doc: Attractor_Analysis
+# @info: Parameters for attractor stability analysis and perturbation experiments
+
+# @param: nPerturb
+# @type: integer
+# @description: Number of single-gene perturbations used to estimate attractor stability and entropy.
+# Higher values provide more accurate entropy estimates but increase computation time.
+# @suggested: [20, 30, 50]
+# @rationale: 20 for quick entropy estimates, 30 for standard accuracy, 50 for precise stability measurements
 nPerturb: 30
+
+# @param: nSamplesState
+# @type: integer
+# @description: Number of states sampled from each attractor basin for entropy calculation.
+# Higher values improve entropy accuracy for large attractor basins.
+# @suggested: [10, 20, 30]
+# @rationale: 10 for quick sampling, 20 for standard basin characterization, 30 for detailed entropy analysis of large basins
 nSamplesState: 20
+
+# @param: attInitialThreshold
+# @type: float
+# @description: Minimum initial aging score required for a network to undergo perturbation analysis.
+# Networks below this threshold are considered already youthful and not analyzed further.
+# @suggested: [0.05, 0.10, 0.20]
+# @rationale: 0.05 for analyzing mildly aged networks, 0.10 for standard aged networks, 0.20 for strongly aged networks only
+attInitialThreshold: 0.10

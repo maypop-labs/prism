@@ -116,6 +116,7 @@ generateBooleanRuleReport <- function(boolRules, edges, paths, cellType, traject
 #' @param boolRules List of Boolean rules with metadata (score, method, n_regulators, rule)
 #' @param edges Data frame with SCENIC metadata (currently used for potential expansion)
 #' @return Data frame with rule statistics and complexity metrics
+#' @export
 extractEnhancedRuleStatistics <- function(boolRules, edges) {
   
   if (length(boolRules) == 0) {
@@ -160,6 +161,7 @@ extractEnhancedRuleStatistics <- function(boolRules, edges) {
 #' @param ruleStats Data frame with rule statistics from extractEnhancedRuleStatistics
 #' @param standardTheme ggplot2 theme object for consistent plot styling
 #' @return ggplot2 object with quality distribution histogram
+#' @export
 plotRuleQualityByMethod <- function(ruleStats, standardTheme) {
   
   if (nrow(ruleStats) == 0) {
@@ -197,6 +199,7 @@ plotRuleQualityByMethod <- function(ruleStats, standardTheme) {
 #' @param ruleStats Data frame with rule statistics from extractEnhancedRuleStatistics
 #' @param standardTheme ggplot2 theme object for consistent plot styling
 #' @return ggplot2 object with method comparison bar chart
+#' @export
 plotMethodComparisonAnalysis <- function(ruleStats, standardTheme) {
   
   if (nrow(ruleStats) == 0) {
@@ -244,6 +247,7 @@ plotMethodComparisonAnalysis <- function(ruleStats, standardTheme) {
 #' @param ruleStats Data frame with rule statistics from extractEnhancedRuleStatistics
 #' @param standardTheme ggplot2 theme object for consistent plot styling
 #' @return ggplot2 object with complexity distribution bar chart
+#' @export
 plotNetworkComplexityOverview <- function(ruleStats, standardTheme) {
   
   if (nrow(ruleStats) == 0) {
@@ -287,6 +291,7 @@ plotNetworkComplexityOverview <- function(ruleStats, standardTheme) {
 #' @param edges Data frame with SCENIC metadata (used for regulatory network context)
 #' @param filename Character string with output file path for text report
 #' @return NULL (writes file as side effect)
+#' @export
 generateEnhancedTextReport <- function(ruleStats, boolRules, edges, filename) {
   
   sink(filename)
@@ -388,4 +393,5 @@ generateEnhancedTextReport <- function(ruleStats, boolRules, edges, filename) {
 #' @param x Left-hand side value
 #' @param y Right-hand side fallback value
 #' @return x if valid, otherwise y
+#' @export
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || is.na(x)) y else x

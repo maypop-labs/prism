@@ -3,15 +3,7 @@
 # Purpose: Perform Boolean network analysis and attractor identification
 # =============================================================================
 
-# Core Philosophy:
-# - Load validated Boolean rules from script 06
-# - Run BoolNet attractor analysis on the entire regulatory network
-# - Use configurable thresholds for exhaustive vs sampling approaches
-# - Preserve all quality control and validation from upstream processing
-
 # --- Initialization ---
-# source("managers/booleanManager.R")
-# source("managers/booleanReportManager.R")
 source("managers/pathManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
@@ -27,8 +19,8 @@ clearConsole()
 
 # === STAGE 1: Load Validated Data ===
 message("=== STAGE 1: Loading validated Boolean rules and trajectory data ===")
-cds       <- loadPseudotimeTrajectory(ptPaths, config)
-boolRules <- loadBooleanRules(ptPaths, config)
+cds       <- loadMonocle3(ptPaths$monocle3, config, "pseudotime trajectory")
+boolRules <- loadObject(ptPaths$booleanRules, config, "Boolean rules")
 
 message("Data loaded successfully:")
 message("  - CDS object: ", nrow(cds), " genes, ", ncol(cds), " cells")
@@ -111,21 +103,21 @@ if (nAttractors > 0) {
 if (config$saveResults) {
   message("\n=== STAGE 4: Saving results ===")
   
-  saveAttractors(attractors, ptPaths, config)
-  saveBoolNetwork(boolNetwork, ptPaths, config)
+  saveObject(attractors, ptPaths$attractors, config, "attractors")
+  saveObject(boolNetwork, ptPaths$boolNet, config, "BoolNet network")
   
   # Generate analysis summary
   boolNetReport <- data.frame(
-    TotalGenes = nNetworkGenes,
-    TotalAttractors = nAttractors,
-    PointAttractors = sum(attractorSizes == 1),
-    CycleAttractors = sum(attractorSizes > 1),
+    TotalGenes       = nNetworkGenes,
+    TotalAttractors  = nAttractors,
+    PointAttractors  = sum(attractorSizes == 1),
+    CycleAttractors  = sum(attractorSizes > 1),
     MaxAttractorSize = ifelse(nAttractors > 0, max(attractorSizes), 0),
     AvgAttractorSize = ifelse(nAttractors > 0, round(mean(attractorSizes), 2), 0),
-    AnalysisMethod = ifelse(nNetworkGenes <= config$boolExhaustiveLimit, "Exhaustive", "Sampling"),
+    AnalysisMethod   = ifelse(nNetworkGenes <= config$boolExhaustiveLimit, "Exhaustive", "Sampling"),
     stringsAsFactors = FALSE
   )
-  saveBoolNetReport(boolNetReport, ptPaths, config)
+  saveObject(boolNetReport, ptPaths$boolNetTsv, config, "BoolNet analysis report")
 }
 
 # === FINAL SUMMARY ===

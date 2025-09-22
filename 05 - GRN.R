@@ -1,6 +1,6 @@
 # =============================================================================
-# 05 - GRN.R (New Modular Version)
-# Build gene regulatory network with SCENIC/GENIE3, enhanced with GeneSwitches
+# 05 - GRN.R
+# Build gene regulatory network with SCENIC/GENIE3, integrated with GeneSwitches
 #
 # Note: Possible > 14-hour runtime for new pseudotime trajectories.
 # =============================================================================
@@ -24,12 +24,12 @@ clearConsole()
 # --- SCENIC Recovery Logic ---
 if (!config$grnFromScratch) {
   # Check if int and output exist locally
-  localIntExists <- dir.exists("int")
+  localIntExists    <- dir.exists("int")
   localOutputExists <- dir.exists("output")
   
   if (!localIntExists || !localOutputExists) {
     # Check if they exist in trajectory-specific scenic folder
-    scenicIntPath <- file.path(ptPaths$scenic, "int")
+    scenicIntPath    <- file.path(ptPaths$scenic, "int")
     scenicOutputPath <- file.path(ptPaths$scenic, "output")
     
     if (dir.exists(scenicIntPath) || dir.exists(scenicOutputPath)) {
@@ -46,15 +46,14 @@ if (!config$grnFromScratch) {
 }
 
 # --- Load Data ---
-if (config$verbose) message("Loading trajectory and switch gene data...")
-cds         <- loadPseudotimeTrajectory(ptPaths, config)
-switchGenes <- loadSwitchGenes(ptPaths, config)
+cds         <- loadMonocle3(ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory with binary assay")
+switchGenes <- loadObject(ptPaths$geneSwitches, config, "switch genes")
 
 # =============================================================================
 # MAIN EXECUTION PIPELINE
 # =============================================================================
 
-if (config$verbose) message("Starting enhanced GRN construction pipeline...")
+if (config$verbose) message("Starting GRN construction pipeline...")
 
 # Execute modular pipeline with error handling
 tryCatch({
@@ -71,11 +70,13 @@ tryCatch({
   # Phase 2c: SCENIC scoring (needed for some metadata)
   scenicOptions <- runScenicScoring(scenicOptions, prepData$exprMatLog, config)
   
-  # Phase 3: Enhanced GRN construction
-  enhancedEdges <- buildEnhancedGrn(scenicOptions, prepData$switchGenes, prepData$exprMat, config)
+  # Phase 3: GRN construction (now uses binary correlations)
+  # Extract binary matrix from CDS for correlation analysis
+  matBin <- assay(cds, "binary")
+  grnEdges <- buildGrn(scenicOptions, prepData$switchGenes, prepData$exprMat, matBin, config)
   
   # Phase 4: Filtering and finalization
-  finalGrn <- filterAndFinalizeGrn(enhancedEdges, config)
+  finalGrn <- filterAndFinalizeGrn(grnEdges, config)
   
   # Phase 5: Output and cleanup
   saveGrnOutputs(finalGrn, ptPaths, config)

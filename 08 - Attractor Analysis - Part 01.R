@@ -1,125 +1,96 @@
 # =============================================================================
-# 09 - Attractor Analysis - Part 01
-#
-# Compute an age-associated score for each Boolean attractor by projecting it
-# onto a pseudotime-defined trajectory axis from young to old cell states.
+# 08 - Attractor Analysis - Part 01.R
+# Purpose: Compute age scores for Boolean network attractors
 # =============================================================================
 
-# --- Libraries ---
-library(foreach)
-library(doParallel)
-library(BoolNet)
-library(monocle3)
-library(dplyr)
-library(gmp)
+# Load required packages and initialize paths
+source("managers/attractorManager.R")
+source("managers/pathManager.R")
+source("managers/setupManager.R")
+source("managers/uiManager.R")
+config     <- initializeScript()
+pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths      <- pathInfo$paths
+cellType   <- pathInfo$cellType
+trajectory <- pathInfo$trajectory
+ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 
-# --- Source functions ---
-source("functions.R")
+message("Loading trajectory data and Boolean network attractors...")
 
-# --- Options ---
-options(warn = -1)
-config <- yaml::read_yaml("config.yaml")
-options(Seurat.object.assay.version = config$seuratAssay)
-registerDoParallel(cores = config$cores)
+# Load data
+cds <- loadMonocle3(ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory")
+geneMap <- loadObject(ptPaths$geneMap, config, "gene mapping")
+attractors <- loadObject(ptPaths$attractors, config, "attractors")
 
-# --- Parameters ---
-monocle3Path    <- paste0(config$rootPath, "results/monocle3/")
-graphMlPath     <- paste0(config$rootPath, "results/graphml/")
-plotPath        <- paste0(config$rootPath, "results/plots/")
-rdsPath         <- paste0(config$rootPath, "results/rds/")
-tsvPath         <- paste0(config$rootPath, "results/tsv/")
-txtPath         <- paste0(config$rootPath, "results/txt/")
-cellTypes       <- readRDS(paste0(rdsPath, "cell_types.rds"))
-cellType        <- showCellTypeMenu(cellTypes)
-trajNamesFile   <- readRDS(paste0(rdsPath, "retained_trajectories_", cellType, ".rds"))
-cellTrajectory  <- showTrajectoryMenu(trajNamesFile)
-cdsPath         <- paste0(monocle3Path, "monocle3_", cellType, "_", cellTrajectory, "_smoothed_geneSwitches")
-degFile         <- paste0(rdsPath, cellType, "_", cellTrajectory, "_switch_degs.rds")
-edgesFile       <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_02_edges.rds")
-graphFile       <- paste0(rdsPath, cellType, "_", cellTrajectory, "_GRN_Part_02.rds")
-rulesFile       <- paste0(rdsPath, cellType, "_", cellTrajectory, "_Boolean_Rules.rds")
-boolnetFile     <- paste0(rdsPath, cellType, "_", cellTrajectory, "_boolnet.rds")
-attractorsFile  <- paste0(rdsPath, cellType, "_", cellTrajectory, "_attractors.rds")
-attractorDfFile <- paste0(rdsPath, cellType, "_", cellTrajectory, "_attractor_df.rds")
-geneMapFile     <- paste0(rdsPath, cellType, "_", cellTrajectory, "_gene_map.rds")
-
-dir.create(graphMlPath, recursive = TRUE, showWarnings = FALSE)
-dir.create(plotPath,    recursive = TRUE, showWarnings = FALSE)
-dir.create(rdsPath,     recursive = TRUE, showWarnings = FALSE)
-dir.create(tsvPath,     recursive = TRUE, showWarnings = FALSE)
-dir.create(txtPath,     recursive = TRUE, showWarnings = FALSE)
-
-# --- Load Data ---
-if (!dir.exists(cdsPath)) stop("Monocle3 object directory not found: ", cdsPath)
-if (!file.exists(geneMapFile)) stop("Gene Map RDS file not found: ", geneMapFile)
-if (!file.exists(attractorsFile)) stop("Attractor RDS file not found: ", attractorsFile)
-
-message("Loading Monocle3 object from: ", cdsPath)
-cds <- load_monocle_objects(directory_path = cdsPath)
-message("Loading gene map from: ", geneMapFile)
-geneMap <- readRDS(geneMapFile)
-message("Loading attractors from: ", attractorsFile)
-attractors <- readRDS(attractorsFile)
-
-cat("\014")
-cat("\n")
-
-# --- Prepare Binary Expression and Pseudotime ---
+# Extract binary expression and pseudotime
 matBin <- assay(cds, "binary")
 colData(cds)$Pseudotime <- pseudotime(cds)
+pseudotimeValues <- colData(cds)$Pseudotime
 
-# --- Compute Young and Old Attractors from Expression ---
-cellOrder <- order(colData(cds)$Pseudotime)
+# Order cells by pseudotime for young/old reference computation
+cellOrder <- order(pseudotimeValues, na.last = NA)
 nCells    <- length(cellOrder)
 q20       <- floor(0.2 * nCells)
-youngVec  <- rowMeans(matBin[, cellOrder[1:q20]])
-oldVec    <- rowMeans(matBin[, cellOrder[(nCells - q20 + 1):nCells]])
 
-# --- Prepare Gene Set for Comparison ---
+# Compute reference vectors from trajectory extremes
+youngVec <- rowMeans(matBin[, cellOrder[1:q20]], na.rm = TRUE)
+oldVec   <- rowMeans(matBin[, cellOrder[(nCells - q20 + 1):nCells]], na.rm = TRUE)
+
+# Map attractor genes to expression data
 sanitizedNames <- attractors$stateInfo$genes
-originalNames  <- geneMap$OriginalName[match(sanitizedNames, geneMap$SanitizedName)]
+originalNames <- geneMap$OriginalName[match(sanitizedNames, geneMap$SanitizedName)]
+netGenes <- intersect(originalNames[!is.na(originalNames)], rownames(matBin))
 
-if (any(is.na(originalNames))) stop("NA found in gene mapping.")
-
-netGenes <- intersect(originalNames, rownames(matBin))
+# Subset reference vectors to valid genes
 youngVec <- youngVec[netGenes]
 oldVec   <- oldVec[netGenes]
 
-# --- Compute Attractor Scores ---
-attractorList <- attractors$attractors
-nAttr         <- length(attractorList)
-attractorScores <- numeric(nAttr)
+message("Computing age scores for ", length(attractors$attractors), " attractors...")
 
-for (i in seq_len(nAttr)) {
-  encodedState <- attractorList[[i]]$involvedStates[[1]]
+# Compute attractor age scores
+attractorList   <- attractors$attractors
+nAttractors     <- length(attractorList)
+attractorScores <- numeric(nAttractors)
+
+for (i in seq_len(nAttractors)) {
+  attractor <- attractorList[[i]]
+  encodedState <- attractor$involvedStates[[1]]
   decoded      <- decodeBigIntegerState(encodedState, length(sanitizedNames))
   names(decoded) <- originalNames
   decoded <- decoded[netGenes]
   
-  numerator   <- sum((decoded - youngVec) * (oldVec - youngVec))
-  denominator <- sum((oldVec - youngVec)^2)
-  score <- numerator / denominator
+  # Compute age score via projection onto young-old axis
+  numerator   <- sum((decoded - youngVec) * (oldVec - youngVec), na.rm = TRUE)
+  denominator <- sum((oldVec - youngVec)^2, na.rm = TRUE)
   
-  attractorScores[i] <- score
+  attractorScores[i] <- if (denominator > 1e-10) numerator / denominator else 0
 }
 
-# --- Assemble Output Data Frame ---
-basinSizes <- sapply(attractorList, function(x) x$basinSize)
-relBasinSizes <- basinSizes / sum(basinSizes)
+# Extract basin sizes
+basinSizes <- sapply(attractorList, function(x) {
+  if (is.null(x$basinSize)) 1 else x$basinSize
+})
 
+# Create results data frame
 attractorDf <- data.frame(
-  Attractor  = seq_len(nAttr),
-  AgeScore   = attractorScores,
-  BasinSize  = relBasinSizes
+  Attractor       = seq_len(nAttractors),
+  AgeScore        = attractorScores,
+  BasinSize       = basinSizes / sum(basinSizes),
+  AttractorSize   = sapply(attractorList, function(x) length(x$involvedStates)),
+  stringsAsFactors = FALSE
 )
 
-cat("\014")
-cat("\n")
-
-# --- (Optional) Save ---
+# Save results
 if (config$saveResults) {
-  message("Saving attractor data frame to: ", attractorDfFile)
-  saveRDS(attractorDf, file = attractorDfFile)
+  saveObject(attractorDf, ptPaths$attractorDf, config, "attractor age scores")
+  
+  referenceVectors <- list(
+    youngVec = youngVec,
+    oldVec = oldVec,
+    netGenes = netGenes
+  )
+  
+  saveObject(referenceVectors, ptPaths$referenceVectors, config, "reference vectors")
 }
-
 message("Done!")

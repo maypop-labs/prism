@@ -33,6 +33,7 @@ generateSanitizedGeneMapping <- function(geneNames) {
 #'
 #' @param name Character string with original gene name
 #' @return Character string with sanitized gene name
+#' @export
 sanitizeGeneName <- function(name) {
   # Convert to valid R variable name
   name2 <- gsub("[^A-Za-z0-9_]", "_", trimws(name))
@@ -47,10 +48,9 @@ sanitizeGeneName <- function(name) {
 
 #' Select optimal regulators for target using SCENIC metadata
 #'
-#' Uses composite weighting of correlation, motif confidence, SCENIC importance,
-#' and diversity filtering to choose the best regulators for Boolean rule inference.
-#' Filters regulators by presence in expression matrix and applies anti-correlation
-#' filtering to avoid multicollinearity.
+#' Uses composite weighting of correlation, motif confidence, SCENIC importance
+#' to choose the best regulators for Boolean rule inference.
+#' Filters regulators by presence in expression matrix.
 #'
 #' @param target Character name of target gene (sanitized)
 #' @param edges Data frame with SCENIC metadata containing columns TF, Target, corr, regType, motifConfidence, NES, hasMotif
@@ -87,6 +87,19 @@ selectOptimalRegulatorsForTarget <- function(target, edges, matBin, maxRegs = 3)
   
   targetEdges <- targetEdges[validRegs, , drop = FALSE]
   
+  # FIXED: Remove self-regulation unless explicitly in SCENIC to avoid identity rules
+  targetEdges <- targetEdges[targetEdges$TF != target, , drop = FALSE]
+  
+  if (nrow(targetEdges) == 0) {
+    return(list(
+      regulators = data.frame(),
+      n_selected = 0,
+      mean_weight = 0,
+      has_activators = FALSE,
+      has_repressors = FALSE
+    ))
+  }
+  
   # Calculate composite weights
   weights <- calculateRegulatorWeights(targetEdges)
   targetEdges$composite_weight <- weights
@@ -96,17 +109,17 @@ selectOptimalRegulatorsForTarget <- function(target, edges, matBin, maxRegs = 3)
   
   # Apply diversity filtering if we have more candidates than slots
   if (nrow(targetEdges) > maxRegs) {
-    selected_indices <- selectDiverseRegulatorsWithWeights(targetEdges, matBin, maxRegs)
-    targetEdges <- targetEdges[selected_indices, , drop = FALSE]
+    # Simple truncation to maxRegs (no diversity filtering)
+    targetEdges <- head(targetEdges, maxRegs)
   }
   
   # Limit to maxRegs
   targetEdges <- head(targetEdges, maxRegs)
   
   return(list(
-    regulators = targetEdges,
-    n_selected = nrow(targetEdges),
-    mean_weight = if (nrow(targetEdges) > 0) mean(targetEdges$composite_weight) else 0,
+    regulators     = targetEdges,
+    n_selected     = nrow(targetEdges),
+    mean_weight    = if (nrow(targetEdges) > 0) mean(targetEdges$composite_weight) else 0,
     has_activators = any(targetEdges$regType == "Activation", na.rm = TRUE),
     has_repressors = any(targetEdges$regType == "Inhibition", na.rm = TRUE)
   ))
@@ -120,6 +133,7 @@ selectOptimalRegulatorsForTarget <- function(target, edges, matBin, maxRegs = 3)
 #'
 #' @param edges Data frame of edges for a single target with SCENIC metadata
 #' @return Numeric vector of composite weights
+#' @export
 calculateRegulatorWeights <- function(edges) {
   
   # Base weight from correlation strength
@@ -152,51 +166,6 @@ calculateRegulatorWeights <- function(edges) {
                direction_bonus
   
   return(composite)
-}
-
-#' Select diverse regulators to avoid multicollinearity
-#'
-#' Uses greedy selection starting with highest-weighted regulator, then adds
-#' additional regulators that are not highly correlated (correlation < 0.8)
-#' with already selected regulators.
-#'
-#' @param edges Sorted edge data frame for a target
-#' @param matBin Binary expression matrix (genes x cells)
-#' @param maxRegs Maximum number of regulators to select
-#' @return Integer vector of selected row indices from edges
-selectDiverseRegulatorsWithWeights <- function(edges, matBin, maxRegs) {
-  
-  regulators <- edges$TF
-  n_regs <- length(regulators)
-  
-  if (n_regs <= maxRegs) {
-    return(1:n_regs)
-  }
-  
-  # Calculate correlation matrix among regulators
-  reg_matrix <- matBin[regulators, , drop = FALSE]
-  reg_cors <- tryCatch({
-    cor(t(reg_matrix))
-  }, error = function(e) {
-    return(matrix(0, nrow = n_regs, ncol = n_regs))
-  })
-  
-  # Greedy selection: start with highest weight, add others that aren't too correlated
-  selected <- c(1)  # Always take the top weighted regulator
-  
-  for (i in 2:n_regs) {
-    if (length(selected) >= maxRegs) break
-    
-    # Check correlation with already selected regulators
-    max_cor <- max(abs(reg_cors[i, selected]), na.rm = TRUE)
-    
-    # Add if not too correlated (threshold 0.8)
-    if (is.na(max_cor) || max_cor < 0.8) {
-      selected <- c(selected, i)
-    }
-  }
-  
-  return(selected)
 }
 
 # =============================================================================
@@ -247,7 +216,7 @@ inferBestBooleanRule <- function(target, regulator_info, matBin, cellOrder, conf
     
     # Create input-output pairs
     tryCatch({
-      ioData <- makeInputOutputPairs(target, reg_names, matBin, cellOrder, k = 0)
+      ioData <- makeInputOutputPairs(target, reg_names, matBin, cellOrder, k = config$boolKValue)
       
       if (!is.null(ioData) && length(ioData$stateIndices) >= 10) {
         
@@ -310,12 +279,12 @@ inferBestBooleanRule <- function(target, regulator_info, matBin, cellOrder, conf
 #' @param target Character name of target gene
 #' @param regulator_info List from selectOptimalRegulatorsForTarget with regulator metadata
 #' @return Named list of template rule strings (BoolNet logic format - target name not included)
+#' @export
 generateSignAwareTemplates <- function(target, regulator_info) {
   
   if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
-    return(list(
-      self_activation = target  # Self-activation: gene depends on itself
-    ))
+    # FIXED: Return empty list instead of self-activation to avoid identity rules
+    return(list())
   }
   
   regulators <- regulator_info$regulators
@@ -384,6 +353,7 @@ generateSignAwareTemplates <- function(target, regulator_info) {
 #' @param matBin Binary expression matrix (genes x cells)
 #' @param regulator_info Regulator information with SCENIC metadata
 #' @return List with composite_score, base_accuracy, sign_consistency, and scenic_confidence
+#' @export
 scoreRuleWithScenicMetrics <- function(ruleLogic, target, matBin, regulator_info) {
   
   # Create full rule string for scoring
@@ -424,6 +394,7 @@ scoreRuleWithScenicMetrics <- function(ruleLogic, target, matBin, regulator_info
 #' @param ruleLogic Character string with Boolean logic
 #' @param regulator_info List with regulator metadata including regType
 #' @return Numeric value between 0 and 1 (proportion of consistent regulator usage)
+#' @export
 calculateSignConsistencyBonus <- function(ruleLogic, regulator_info) {
   
   if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
@@ -470,6 +441,7 @@ calculateSignConsistencyBonus <- function(ruleLogic, regulator_info) {
 #'
 #' @param regulator_info List with regulator metadata including motifConfidence, NES, hasMotif
 #' @return Numeric confidence score (0 to ~1)
+#' @export
 calculateScenicConfidenceBonus <- function(regulator_info) {
   
   if (length(regulator_info) == 0 || regulator_info$n_selected == 0) {
@@ -513,7 +485,7 @@ createIntelligentFallback <- function(target, regulator_info, matBin, config) {
   
   # Check target gene expression pattern
   if (!target %in% rownames(matBin)) {
-    return(createConstantFallback(target, 1, "missing_gene"))
+    return(createConstantFallback(target, 1, "missing_gene", matBin))
   }
   
   target_expr <- matBin[target, ]
@@ -521,32 +493,16 @@ createIntelligentFallback <- function(target, regulator_info, matBin, config) {
   
   # If gene has clear expression bias, use constant rule
   if (prevalence > 0.8) {
-    return(createConstantFallback(target, 1, "high_prevalence"))
+    return(createConstantFallback(target, 1, "high_prevalence", matBin))
   } else if (prevalence < 0.2) {
-    return(createConstantFallback(target, 0, "low_prevalence"))
+    return(createConstantFallback(target, 0, "low_prevalence", matBin))
   }
   
-  # Try self-activation if expression is intermediate
-  self_rule <- paste0(target, ", ", target)
-  self_score <- tryCatch({
-    scoreBooleanRule(self_rule, matBin)
-  }, error = function(e) {
-    0.5  # Default score for self-activation
-  })
+  # FIXED: Avoid identity rules that create point attractors
+  # Use constant rule based on expression prevalence instead of self-activation
   
-  if (self_score > 0.55) {
-    return(list(
-      rule = self_rule,
-      score = self_score,
-      method = "self_activation_fallback",
-      regulators = character(0),
-      n_regulators = 0,
-      k_used = 0
-    ))
-  }
-  
-  # Final fallback: majority rule
-  return(createConstantFallback(target, ifelse(prevalence > 0.5, 1, 0), "majority_fallback"))
+  # Final fallback: majority rule based on prevalence
+  return(createConstantFallback(target, ifelse(prevalence > 0.5, 1, 0), "majority_fallback", matBin))
 }
 
 #' Create simple fallback rule for failed cases
@@ -562,14 +518,14 @@ createIntelligentFallback <- function(target, regulator_info, matBin, config) {
 createFallbackRule <- function(target, matBin, config) {
   
   if (!target %in% rownames(matBin)) {
-    return(createConstantFallback(target, 1, "missing_gene"))
+    return(createConstantFallback(target, 1, "missing_gene", matBin))
   }
   
   # Use expression prevalence to decide constant value
   prevalence <- mean(matBin[target, ], na.rm = TRUE)
   constant_val <- ifelse(prevalence > 0.5, 1, 0)
   
-  return(createConstantFallback(target, constant_val, "simple_fallback"))
+  return(createConstantFallback(target, constant_val, "simple_fallback", matBin))
 }
 
 #' Create constant rule fallback
@@ -578,10 +534,20 @@ createFallbackRule <- function(target, matBin, config) {
 #' when other inference methods fail or are inappropriate.
 #'
 #' @param target Target gene name
-#' @param value Constant value (0 or 1)
+#' @param value Constant value (0 or 1) - if NULL, will be determined from expression
 #' @param reason Character string describing reason for fallback
+#' @param matBin Binary expression matrix (optional, for auto-determining value)
 #' @return List with constant rule metadata
-createConstantFallback <- function(target, value, reason) {
+#' @export
+createConstantFallback <- function(target, value, reason, matBin = NULL) {
+  # FIXED: Auto-determine constant value from expression if not provided
+  if (is.null(value) && !is.null(matBin) && target %in% rownames(matBin)) {
+    prevalence <- mean(matBin[target, ], na.rm = TRUE)
+    value <- ifelse(prevalence >= 0.5, 1, 0)
+  } else if (is.null(value)) {
+    value <- 1  # Default fallback
+  }
+  
   list(
     rule = paste0(target, ", ", value),
     score = 0.5,  # Neutral score for constants
@@ -664,46 +630,338 @@ performFinalValidation <- function(boolRules, matBin, edges) {
 #' @param x Left-hand side value
 #' @param y Right-hand side fallback value
 #' @return x if valid, otherwise y
+#' @export
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || is.na(x)) y else x
 
-# Fallback implementations for missing functions from boolean_helpers.R
-if (!exists("makeInputOutputPairs")) {
-  #' Fallback for makeInputOutputPairs function
-  #' @param targetGene Target gene name
-  #' @param regulators Vector of regulator gene names  
-  #' @param matBin Binary expression matrix
-  #' @param cellOrder Cell ordering vector
-  #' @param k Time step parameter
-  #' @return NULL (fallback implementation)
-  makeInputOutputPairs <- function(targetGene, regulators, matBin, cellOrder, k = 0) {
-    warning("makeInputOutputPairs function not found - using fallback")
+# =============================================================================
+# Boolean Rule Learning Core Functions
+# =============================================================================
+
+#' Create input-output pairs for Boolean rule learning
+#'
+#' Generates training data for Boolean rule inference by creating pairs of 
+#' regulator states (input) and target gene state (output) along pseudotime.
+#' Uses config$boolKValue for temporal offset.
+#'
+#' @param targetGene Character name of target gene (sanitized)
+#' @param regulators Character vector of regulator gene names (sanitized)
+#' @param matBin Binary expression matrix (genes x cells)
+#' @param cellOrder Integer vector of cell indices ordered by pseudotime
+#' @param k Integer time step offset between input and output (from config$boolKValue)
+#' @return List with regulators, stateIndices, inputStates, outputStates, and ioData
+#' @export
+makeInputOutputPairs <- function(targetGene, regulators, matBin, cellOrder, k) {
+  
+  # Input validation
+  if (!targetGene %in% rownames(matBin)) {
+    warning("Target gene '", targetGene, "' not found in expression matrix")
     return(NULL)
   }
-}
-
-if (!exists("findBestBooleanRules")) {
-  #' Fallback for findBestBooleanRules function
-  #' @param ioData Input-output data structure
-  #' @return NULL (fallback implementation)
-  findBestBooleanRules <- function(ioData) {
-    warning("findBestBooleanRules function not found - using fallback")
+  
+  missingRegs <- setdiff(regulators, rownames(matBin))
+  if (length(missingRegs) > 0) {
+    warning("Regulators not found in matrix: ", paste(missingRegs, collapse = ", "))
+    regulators <- intersect(regulators, rownames(matBin))
+  }
+  
+  if (length(regulators) == 0) {
+    warning("No valid regulators found for target '", targetGene, "'")
     return(NULL)
   }
+  
+  if (length(cellOrder) <= k) {
+    warning("Cell order length (", length(cellOrder), ") <= k (", k, ")")
+    return(NULL)
+  }
+  
+  # Create input-output pairs
+  maxT <- length(cellOrder) - k
+  if (maxT < 5) {  # Need minimum data for learning
+    warning("Insufficient data points (", maxT, ") for rule learning")
+    return(NULL)
+  }
+  
+  inputStates <- matrix(0, nrow = maxT, ncol = length(regulators))
+  colnames(inputStates) <- regulators
+  outputStates <- numeric(maxT)
+  stateIndices <- seq_len(maxT)
+  
+  # Extract states efficiently
+  for (t in stateIndices) {
+    inputStates[t, ] <- matBin[regulators, cellOrder[t], drop = TRUE]
+    outputStates[t] <- matBin[targetGene, cellOrder[t + k]]
+  }
+  
+  # Create data frame for compatibility with old interface
+  ioData <- data.frame(inputStates, output = outputStates, stringsAsFactors = FALSE)
+  
+  # Return structure expected by current workflow
+  return(list(
+    regulators = regulators,
+    stateIndices = stateIndices,
+    inputStates = inputStates,
+    outputStates = outputStates,
+    ioData = ioData
+  ))
 }
 
-if (!exists("makeBoolNetRule")) {
-  #' Fallback for makeBoolNetRule function
-  #' @param geneName Target gene name
-  #' @param regulators Vector of regulator names
-  #' @param outPattern Output pattern vector
-  #' @return Character string with BoolNet rule
-  makeBoolNetRule <- function(geneName, regulators, outPattern) {
-    # Fallback implementation for BoolNet rule creation
-    if (length(regulators) == 0) {
-      return(paste0(geneName, ", ", geneName))  # Self-activation
+#' Find best Boolean rules using exhaustive search
+#'
+#' Searches all possible Boolean functions for the given number of inputs
+#' and returns the best-scoring functions. Updated to handle ties properly
+#' and provide better error handling.
+#'
+#' @param ioData List containing inputStates, outputStates, and other metadata
+#' @return List with score, bestFns, functionsTestsed (note: typo preserved for compatibility), totalPossible
+#' @export
+findBestBooleanRules <- function(ioData) {
+  
+  # Input validation and extraction
+  if (is.null(ioData) || is.null(ioData$inputStates) || is.null(ioData$outputStates)) {
+    warning("Invalid ioData structure")
+    return(NULL)
+  }
+  
+  inputStates <- ioData$inputStates
+  outputStates <- ioData$outputStates
+  regulators <- ioData$regulators
+  
+  if (nrow(inputStates) == 0 || length(outputStates) == 0) {
+    warning("No input-output data available")
+    return(NULL)
+  }
+  
+  if (nrow(inputStates) != length(outputStates)) {
+    warning("Mismatch between input and output data lengths")
+    return(NULL)
+  }
+  
+  R <- ncol(inputStates)
+  if (R == 0) {
+    warning("No regulator inputs available")
+    return(NULL)
+  }
+  
+  # Limit complexity for computational feasibility
+  if (R > 4) {
+    warning("Too many regulators (", R, ") for exhaustive search, using heuristic")
+    return(findBestBooleanRulesHeuristic(ioData))
+  }
+  
+  # Generate all possible input states for R regulators
+  allInputStates <- expand.grid(rep(list(c(0, 1)), R))
+  colnames(allInputStates) <- regulators
+  nStates <- 2^R
+  
+  # All possible Boolean functions (2^(2^R) possibilities)
+  totalPossible <- 2^nStates
+  if (totalPossible > 65536) {  # Practical limit
+    warning("Too many possible functions (", totalPossible, "), using heuristic approach")
+    return(findBestBooleanRulesHeuristic(ioData))
+  }
+  
+  bestScore <- -1
+  bestFns <- list()
+  functionsTestsed <- 0  # Note: preserving typo for compatibility
+  
+  # Exhaustive search over all Boolean functions
+  for (fnIdx in 0:(totalPossible - 1)) {
+    functionsTestsed <- functionsTestsed + 1
+    
+    # Convert function index to output pattern
+    outPattern <- as.integer(intToBits(fnIdx)[1:nStates])
+    
+    # Score this function against the data
+    correct <- 0
+    for (i in seq_len(nrow(inputStates))) {
+      # Find which row in allInputStates matches current input
+      matchIdx <- which(apply(allInputStates, 1, function(x) {
+        all(x == inputStates[i, ])
+      }))
+      
+      if (length(matchIdx) == 1 && outPattern[matchIdx] == outputStates[i]) {
+        correct <- correct + 1
+      }
     }
-    # Default to OR logic
-    return(paste0(geneName, ", ", paste(regulators, collapse = " | ")))
+    
+    score <- correct / length(outputStates)
+    
+    # Track best functions
+    if (score > bestScore) {
+      bestScore <- score
+      bestFns <- list(list(
+        patternIdx = fnIdx,
+        outPattern = outPattern,
+        score = score
+      ))
+    } else if (abs(score - bestScore) < 1e-9) {
+      bestFns[[length(bestFns) + 1]] <- list(
+        patternIdx = fnIdx,
+        outPattern = outPattern,
+        score = score
+      )
+    }
+  }
+  
+  return(list(
+    score = bestScore,
+    bestFns = bestFns,
+    functionsTestsed = functionsTestsed,  # Note: preserving typo
+    totalPossible = totalPossible
+  ))
+}
+
+#' Heuristic Boolean rule search for large regulator sets
+#'
+#' Uses greedy search and common Boolean patterns when exhaustive search
+#' is computationally infeasible.
+#'
+#' @param ioData List containing input-output training data
+#' @return List with score, bestFns, functionsTestsed, totalPossible
+#' @export
+findBestBooleanRulesHeuristic <- function(ioData) {
+  
+  inputStates <- ioData$inputStates
+  outputStates <- ioData$outputStates
+  regulators <- ioData$regulators
+  R <- ncol(inputStates)
+  
+  # Try common Boolean patterns first
+  patterns <- list(
+    # Single regulators
+    lapply(1:R, function(i) {
+      pattern <- rep(0, 2^R)
+      for (state in 0:(2^R - 1)) {
+        bits <- as.integer(intToBits(state))[1:R]
+        if (bits[i] == 1) pattern[state + 1] <- 1
+      }
+      list(type = paste0("single_", i), pattern = pattern)
+    }),
+    
+    # OR of all regulators
+    list(list(
+      type = "all_or",
+      pattern = c(0, rep(1, 2^R - 1))  # Only (0,0,...,0) -> 0, all others -> 1
+    )),
+    
+    # AND of all regulators  
+    list(list(
+      type = "all_and",
+      pattern = c(rep(0, 2^R - 1), 1)  # Only (1,1,...,1) -> 1, all others -> 0
+    ))
+  )
+  
+  bestScore <- -1
+  bestFns <- list()
+  functionsTestsed <- 0
+  
+  # Test each pattern
+  for (patternGroup in patterns) {
+    for (pattern in patternGroup) {
+      functionsTestsed <- functionsTestsed + 1
+      
+      # Score pattern
+      allInputStates <- expand.grid(rep(list(c(0, 1)), R))
+      correct <- 0
+      
+      for (i in seq_len(nrow(inputStates))) {
+        matchIdx <- which(apply(allInputStates, 1, function(x) {
+          all(x == inputStates[i, ])
+        }))
+        
+        if (length(matchIdx) == 1 && pattern$pattern[matchIdx] == outputStates[i]) {
+          correct <- correct + 1
+        }
+      }
+      
+      score <- correct / length(outputStates)
+      
+      if (score > bestScore) {
+        bestScore <- score
+        bestFns <- list(list(
+          patternIdx = -1,  # Heuristic patterns don't have indices
+          outPattern = pattern$pattern,
+          score = score,
+          type = pattern$type
+        ))
+      } else if (abs(score - bestScore) < 1e-9) {
+        bestFns[[length(bestFns) + 1]] <- list(
+          patternIdx = -1,
+          outPattern = pattern$pattern,
+          score = score,
+          type = pattern$type
+        )
+      }
+    }
+  }
+  
+  return(list(
+    score = bestScore,
+    bestFns = bestFns,
+    functionsTestsed = functionsTestsed,
+    totalPossible = 2^(2^R)
+  ))
+}
+
+#' Convert Boolean function pattern to BoolNet rule string
+#'
+#' Generates BoolNet-compatible rule strings from Boolean function patterns.
+#' Updated to handle edge cases and provide cleaner output.
+#'
+#' @param geneName Character name of target gene
+#' @param regulators Character vector of regulator names
+#' @param outPattern Integer vector of Boolean function outputs
+#' @return Character string with complete BoolNet rule
+#' @export
+makeBoolNetRule <- function(geneName, regulators, outPattern) {
+  
+  # Handle case with no regulators
+  if (length(regulators) == 0) {
+    if (length(outPattern) == 0 || outPattern[1] == 1) {
+      return(paste0(geneName, ", ", geneName))  # Self-activation
+    } else {
+      return(paste0(geneName, ", !", geneName))  # Self-inhibition
+    }
+  }
+  
+  R <- length(regulators)
+  expectedLength <- 2^R
+  
+  if (length(outPattern) != expectedLength) {
+    warning("Pattern length (", length(outPattern), ") != 2^R (", expectedLength, ")")
+    # Pad or truncate as needed
+    if (length(outPattern) < expectedLength) {
+      outPattern <- c(outPattern, rep(0, expectedLength - length(outPattern)))
+    } else {
+      outPattern <- outPattern[1:expectedLength]
+    }
+  }
+  
+  # Find all input combinations that produce output = 1
+  clauseList <- c()
+  for (i in 0:(expectedLength - 1)) {
+    if (outPattern[i + 1] == 1) {
+      bits <- as.integer(intToBits(i))[1:R]
+      andTerms <- ifelse(bits == 1, regulators, paste0("!", regulators))
+      clause <- paste(andTerms, collapse = " & ")
+      if (R > 1) {
+        clauseList <- c(clauseList, paste0("(", clause, ")"))
+      } else {
+        clauseList <- c(clauseList, clause)
+      }
+    }
+  }
+  
+  # Handle edge cases
+  if (length(clauseList) == 0) {
+    # Function is always false
+    return(paste0(geneName, ", 0"))
+  } else if (length(clauseList) == 1) {
+    # Single clause
+    return(paste0(geneName, ", ", clauseList[1]))
+  } else {
+    # Multiple clauses - OR them together
+    return(paste0(geneName, ", ", paste(clauseList, collapse = " | ")))
   }
 }
 
@@ -715,6 +973,7 @@ if (!exists("makeBoolNetRule")) {
 #' @param ruleStr Character string with complete BoolNet rule ("target, logic")
 #' @param matBin Binary expression matrix (genes x cells)
 #' @return Numeric score between 0 and 1 indicating rule accuracy
+#' @export
 scoreBooleanRule <- function(ruleStr, matBin) {
   # Fallback implementation for rule scoring
   tryCatch({

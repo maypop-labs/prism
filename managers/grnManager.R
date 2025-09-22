@@ -4,7 +4,15 @@
 # Simplified for the new modular GRN pipeline
 # =============================================================================
 
+# Load required managers
+source("managers/pathManager.R")
+
 # Helpers
+#' Null coalescing operator
+#' @param a Left-hand side value
+#' @param b Right-hand side value  
+#' @return a if not NULL, otherwise b
+#' @export
 `%||%` <- function(a,b) if (!is.null(a)) a else b
 
 #' Prepare GRN data by filtering expression matrix and setting up SCENIC
@@ -22,12 +30,12 @@ prepareGrnData <- function(cds, switchGenes, config) {
   if (config$verbose) message("Phase 1: Preparing expression data and SCENIC setup")
   
   # Extract and filter expression matrix
-  exprMat <- sparseToDense(assay(cds, "counts"))
+  exprMat         <- sparseToDense(assay(cds, "counts"))
   switchGeneNames <- rownames(switchGenes)
   
   # Load TF list from SCENIC
   data(defaultDbNames)
-  species <- config$grnScenicSpecies
+  species  <- config$grnScenicSpecies
   baseName <- paste0("motifAnnotations_", species)
   
   # Try to load motif annotations
@@ -45,24 +53,33 @@ prepareGrnData <- function(cds, switchGenes, config) {
   
   # Initialize SCENIC options
   scenicOptions <- initializeScenic(
-    org = config$grnScenicSpecies,
-    dbDir = config$rcisTargetPath, 
-    dbs = config$grnScenicDBs,
+    org    = config$grnScenicSpecies,
+    dbDir  = config$rcisTargetPath, 
+    dbs    = config$grnScenicDBs,
     nCores = config$cores
   )
   
   # Filter genes
-  allTFs <- getDbTfs(scenicOptions)
+  allTFs    <- getDbTfs(scenicOptions)
   keepGenes <- rowSums(exprMat > 1) >= 10
-  exprMat <- exprMat[keepGenes, ]
+  exprMat   <- exprMat[keepGenes, ]
   
   # Focus on switch genes + TFs
   unionGenes <- union(switchGeneNames, allTFs)
-  exprMat <- exprMat[intersect(rownames(exprMat), unionGenes), ]
+  if (config$verbose) {
+    message("Switch genes available: ", length(switchGeneNames))
+    message("TFs in database: ", length(allTFs))
+    message("Union of switch genes + TFs: ", length(unionGenes))
+    message("Genes in expression matrix before TF/switch filter: ", nrow(exprMat))
+  }
+  exprMat    <- exprMat[intersect(rownames(exprMat), unionGenes), ]
+  if (config$verbose) {
+    message("Genes in expression matrix after TF/switch filter: ", nrow(exprMat))
+  }
   
   # SCENIC gene filtering
   filteredGenes <- geneFiltering(exprMat, scenicOptions)
-  exprMatLog <- log2(exprMat[filteredGenes, ] + 1)
+  exprMatLog    <- log2(exprMat[filteredGenes, ] + 1)
   
   if (config$verbose) {
     message("Expression matrix: ", nrow(exprMatLog), " genes x ", ncol(exprMatLog), " cells")
@@ -70,11 +87,11 @@ prepareGrnData <- function(cds, switchGenes, config) {
   }
   
   return(list(
-    exprMat = exprMat,
-    exprMatLog = exprMatLog,
+    exprMat       = exprMat,
+    exprMatLog    = exprMatLog,
     scenicOptions = scenicOptions,
     filteredGenes = filteredGenes,
-    switchGenes = switchGenes
+    switchGenes   = switchGenes
   ))
 }
 
@@ -94,28 +111,28 @@ addGeneSwitchesInfo <- function(edges, switchGenes, verbose = FALSE) {
   
   # Add switch timing for targets
   edges$targetSwitchTime <- NA_real_
-  edges$targetDirection <- NA_character_
-  edges$targetPseudoR2 <- NA_real_
+  edges$targetDirection  <- NA_character_
+  edges$targetPseudoR2   <- NA_real_
   
   matchedTargets <- match(edges$Target, rownames(switchGenes))
-  validMatches <- !is.na(matchedTargets)
+  validMatches   <- !is.na(matchedTargets)
   
   if (any(validMatches)) {
     edges$targetSwitchTime[validMatches] <- switchGenes$switch_at_time[matchedTargets[validMatches]]
-    edges$targetDirection[validMatches] <- switchGenes$direction[matchedTargets[validMatches]] 
-    edges$targetPseudoR2[validMatches] <- switchGenes$pseudoR2s[matchedTargets[validMatches]]
+    edges$targetDirection[validMatches]  <- switchGenes$direction[matchedTargets[validMatches]] 
+    edges$targetPseudoR2[validMatches]   <- switchGenes$pseudoR2s[matchedTargets[validMatches]]
   }
   
   # Add switch timing for TFs (if available)
   edges$tfSwitchTime <- NA_real_
   edges$tfDirection <- NA_character_
   
-  matchedTFs <- match(edges$TF, rownames(switchGenes))
+  matchedTFs     <- match(edges$TF, rownames(switchGenes))
   validTFMatches <- !is.na(matchedTFs)
   
   if (any(validTFMatches)) {
     edges$tfSwitchTime[validTFMatches] <- switchGenes$switch_at_time[matchedTFs[validTFMatches]]
-    edges$tfDirection[validTFMatches] <- switchGenes$direction[matchedTFs[validTFMatches]]
+    edges$tfDirection[validTFMatches]  <- switchGenes$direction[matchedTFs[validTFMatches]]
   }
   
   # Calculate temporal consistency (TF should switch before target)
@@ -128,7 +145,7 @@ addGeneSwitchesInfo <- function(edges, switchGenes, verbose = FALSE) {
   
   if (verbose) {
     nTargetsWithTiming <- sum(!is.na(edges$targetSwitchTime))
-    nTFsWithTiming <- sum(!is.na(edges$tfSwitchTime))
+    nTFsWithTiming     <- sum(!is.na(edges$tfSwitchTime))
     nTemporallyConsistent <- sum(edges$temporallyConsistent, na.rm = TRUE)
     message("    Targets with switch timing: ", nTargetsWithTiming, "/", nrow(edges))
     message("    TFs with switch timing: ", nTFsWithTiming, "/", nrow(edges))
@@ -155,11 +172,11 @@ extractScenicMetadata <- function(scenicOptions, edges, verbose = TRUE) {
   rtiFile <- "int/2.5_regulonTargetsInfo.Rds"
   if (!file.exists(rtiFile)) {
     warning("regulonTargetsInfo file not found, adding empty motif columns")
-    edges$hasMotif <- FALSE
+    edges$hasMotif        <- FALSE
     edges$motifConfidence <- 0
-    edges$NES <- NA_real_
-    edges$nMotifs <- NA_integer_
-    edges$bestMotif <- NA_character_
+    edges$NES             <- NA_real_
+    edges$nMotifs         <- NA_integer_
+    edges$bestMotif       <- NA_character_
     return(edges)
   }
   
@@ -302,7 +319,7 @@ computeCompositeRanking <- function(edges, config, verbose = FALSE) {
   weights <- weights / sum(weights)
   
   # Normalize individual scores to [0,1] with division by zero guards
-  maxCorr <- max(abs(edges$corr), na.rm = TRUE)
+  maxCorr   <- max(abs(edges$corr), na.rm = TRUE)
   maxGenie3 <- max(edges$genie3Importance, na.rm = TRUE)
   
   # Guard against division by zero
@@ -326,8 +343,8 @@ computeCompositeRanking <- function(edges, config, verbose = FALSE) {
   
   # Composite score
   edges$compositeScore <- weights[1] * edges$corrScore + 
-                         weights[2] * edges$genie3Score + 
-                         weights[3] * edges$motifScore
+                          weights[2] * edges$genie3Score + 
+                          weights[3] * edges$motifScore
   
   # Rank by target gene
   edges <- edges %>%
@@ -355,18 +372,17 @@ sparseToDense <- function(exprMat) {
   exprMat
 }
 
-#' Create and save a GRN plot with enhanced metadata
+#' Create and save a GRN plot with metadata
 #' 
 #' @param graph igraph object representing the gene regulatory network
 #' @param plotPath character, full path where plot should be saved
 #' @param title character, plot title (default: "Gene Regulatory Network")
 #' @param config list, configuration object containing plot parameters
-#' @param edges data.frame, edge metadata for enhanced visualization
+#' @param edges data.frame, edge metadata for visualization
 #' @param verbose logical, whether to print status messages
 #' @return ggplot object (invisibly)
 #' @export
-createAndSaveGrnPlot <- function(graph, plotPath, title = "Gene Regulatory Network", 
-                                 config, edges = NULL, verbose = FALSE) {
+createAndSaveGrnPlot <- function(graph, plotPath, title = "Gene Regulatory Network", config, edges = NULL, verbose = FALSE) {
   
   if (!igraph::is_igraph(graph)) {
     stop("Input 'graph' must be an igraph object")
@@ -383,7 +399,7 @@ createAndSaveGrnPlot <- function(graph, plotPath, title = "Gene Regulatory Netwo
   
   # Add edge attributes if available
   if (!is.null(edges)) {
-    edgeList <- igraph::as_data_frame(graph, what = "edges")
+    edgeList      <- igraph::as_data_frame(graph, what = "edges")
     enhancedEdges <- edgeList %>%
       left_join(edges %>% select(from = TF, to = Target, regType, motifConfidence), 
                 by = c("from", "to"))
@@ -402,87 +418,85 @@ createAndSaveGrnPlot <- function(graph, plotPath, title = "Gene Regulatory Netwo
     {
       if (igraph::ecount(graph) > 0) {
         if ("regType" %in% igraph::edge_attr_names(graph)) {
-          ggraph::geom_edge_arc(aes(colour = regType), 
-                               start_cap = ggraph::circle(0, 'mm'),
-                               end_cap = ggraph::circle(6, 'mm'),
-                               alpha = 1.0,
-                               width = 1.2,
-                               curvature = 0.2,
-                               arrow = grid::arrow(length = grid::unit(4, "mm"), 
-                                                  type = "closed"))
+          ggraph::geom_edge_arc(aes(colour  = regType), 
+                                start_cap   = ggraph::circle(0, 'mm'),
+                                end_cap     = ggraph::circle(6, 'mm'),
+                                alpha       = 1.0,
+                                width       = 1.2,
+                                curvature   = 0.2,
+                                arrow       = grid::arrow(length = grid::unit(4, "mm"), type = "closed")
+                               )
         } else {
-          ggraph::geom_edge_arc(alpha = 1.0,
-                               start_cap = ggraph::circle(0, 'mm'),
-                               end_cap = ggraph::circle(6, 'mm'),
-                               width = 1.2,
-                               curvature = 0.2,
-                               arrow = grid::arrow(length = grid::unit(4, "mm")))
+          ggraph::geom_edge_arc(alpha     = 1.0,
+                                start_cap = ggraph::circle(0, 'mm'),
+                                end_cap   = ggraph::circle(6, 'mm'),
+                                width     = 1.2,
+                                curvature = 0.2,
+                                arrow     = grid::arrow(length = grid::unit(4, "mm"))
+                               )
         }
       } else {
         ggraph::geom_edge_arc(alpha = 1.0)
       }
     } +
-    ggraph::geom_node_point(size = 8, 
-                           color = "black",
+    ggraph::geom_node_point(size  = 8, 
+                           color  = "black",
                            stroke = 1.5,
-                           shape = 21,
-                           fill = "lightblue") +
-    ggraph::geom_node_text(aes(label = name), 
-                          size = 3.5, 
-                          repel = TRUE,
+                           shape  = 21,
+                           fill   = "lightblue") +
+    ggraph::geom_node_text(aes(label    = name), 
+                          size          = 3.5, 
+                          repel         = TRUE,
                           point.padding = 1.2,
-                          box.padding = 0.8,
-                          force = 5,
-                          max.overlaps = Inf) +
-    ggraph::scale_edge_colour_manual(values = c("Activation" = "darkgreen", 
-                                               "Inhibition" = "darkred"),
-                                     guide = "none") +
+                          box.padding   = 0.8,
+                          force         = 5,
+                          max.overlaps  = Inf) +
+    ggraph::scale_edge_colour_manual(values = c("Activation" = "darkgreen", "Inhibition" = "darkred"), guide = "none") +
     ggplot2::ggtitle(title) +
     ggplot2::expand_limits(x = c(-1.5, 1.5), y = c(-1.5, 1.5)) +
     ggraph::theme_graph()
   
   # Save plot
-  if (verbose) message("Saving enhanced GRN plot to: ", plotPath)
+  if (verbose) message("Saving GRN plot to: ", plotPath)
   
   ggplot2::ggsave(
     filename = plotPath,
-    plot = grnPlot,
-    width = config$figWidth,
-    height = config$figHeight,
-    dpi = config$figDPI,
-    units = "in"
+    plot     = grnPlot,
+    width    = config$figWidth,
+    height   = config$figHeight,
+    dpi      = config$figDPI,
+    units    = "in"
   )
   
   invisible(grnPlot)
 }
 
-#' Create and save a GraphML file with enhanced metadata
+#' Enhance graph with edge metadata attributes for export
 #' 
 #' @param graph igraph object representing the gene regulatory network
-#' @param graphmlPath character, full path where GraphML file should be saved
-#' @param edges data.frame, edge metadata to include in GraphML
+#' @param edges data.frame, edge metadata to include as graph attributes
 #' @param verbose logical, whether to print status messages
-#' @return NULL (invisibly)
+#' @return Enhanced igraph object with edge attributes
 #' @export
-createAndSaveGraphml <- function(graph, graphmlPath, edges = NULL, verbose = FALSE) {
+enhanceGraphWithMetadata <- function(graph, edges = NULL, verbose = FALSE) {
   
   if (!igraph::is_igraph(graph)) {
     stop("Input 'graph' must be an igraph object")
   }
   
   if (igraph::vcount(graph) == 0 || igraph::ecount(graph) == 0) {
-    stop("Cannot save GraphML: graph has no vertices or edges")
+    warning("Graph has no vertices or edges")
+    return(graph)
   }
-  
-  if (verbose) message("Saving GraphML file to: ", graphmlPath)
   
   # Add edge attributes if available
   if (!is.null(edges)) {
+    if (verbose) message("Enhancing graph with edge metadata...")
+    
     edgeList <- igraph::as_data_frame(graph, what = "edges")
     enhancedEdges <- edgeList %>%
       left_join(edges %>% 
-                select(from = TF, to = Target, 
-                       any_of(c("genie3Importance", "regType", "motifConfidence", "corr"))), 
+                select(from = TF, to = Target, any_of(c("genie3Importance", "regType", "motifConfidence", "corr"))), 
                 by = c("from", "to"))
     
     # Add attributes to graph
@@ -496,55 +510,47 @@ createAndSaveGraphml <- function(graph, graphmlPath, edges = NULL, verbose = FAL
         igraph::E(graph)[[col]] <- enhancedEdges[[col]]
       }
     }
-  }
-  
-  # Ensure directory exists
-  dir.create(dirname(graphmlPath), recursive = TRUE, showWarnings = FALSE)
-  
-  # Save GraphML
-  tryCatch({
-    igraph::write_graph(graph, graphmlPath, format = "graphml")
+    
     if (verbose) {
-      message("Successfully saved GraphML with ", igraph::vcount(graph), 
+      message("Enhanced graph with ", igraph::vcount(graph), 
               " nodes and ", igraph::ecount(graph), " edges")
     }
-  }, error = function(e) {
-    stop("Failed to save GraphML file: ", e$message)
-  })
+  }
   
-  invisible(NULL)
+  return(graph)
 }
 
-#' Save complete enhanced GRN output set
+#' Save complete GRN output set using standardized saveObject function
 #' 
 #' @param graph igraph object representing the gene regulatory network
-#' @param edges data.frame with enhanced edge metadata
-#' @param rdsPath character, path for RDS file
+#' @param edges data.frame with edge metadata
+#' @param graphRdsPath character, path for graph igraph RDS file
+#' @param edgesRdsPath character, path for edges data frame RDS file
 #' @param plotPath character, path for plot file
 #' @param graphmlPath character, path for GraphML file
-#' @param edgesPath character, path for edges CSV file
+#' @param edgesPath character, path for edges TSV file
 #' @param title character, plot title
 #' @param config list, configuration object
 #' @param verbose logical, whether to print status messages
 #' @return list with paths to saved files (invisibly)
 #' @export
-saveEnhancedGrnOutputSet <- function(graph, edges, rdsPath, plotPath, graphmlPath, 
+saveGrnOutputSet <- function(graph, edges, graphRdsPath, edgesRdsPath, plotPath, graphmlPath, 
                                      edgesPath, title, config, verbose = FALSE) {
   
   if (verbose) message("Saving complete GRN output set...")
   
   # Ensure directories exist
-  for (path in c(rdsPath, plotPath, graphmlPath, edgesPath)) {
+  for (path in c(graphRdsPath, edgesRdsPath, plotPath, graphmlPath, edgesPath)) {
     dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   }
   
-  # Save RDS
-  if (verbose) message("  Saving GRN object...")
-  saveRDS(graph, file = rdsPath)
+  # Save graph RDS (igraph object) using standardized saveObject
+  saveObject(graph, graphRdsPath, config, "GRN graph igraph object")
   
-  # Save edges CSV with all computed columns
-  if (verbose) message("  Saving comprehensive edges table...")
+  # Save edges RDS (data frame) using standardized saveObject
+  saveObject(edges, edgesRdsPath, config, "GRN edges data frame")
   
+  # Prepare edges data for TSV export
   # Select all relevant columns for export
   exportCols <- c("TF", "Target", "regType", "corr", "genie3Importance", 
                   "motifConfidence", "corrScore", "genie3Score", "motifScore", 
@@ -566,18 +572,20 @@ saveEnhancedGrnOutputSet <- function(graph, edges, rdsPath, plotPath, graphmlPat
     if (verbose) message("  Note: Missing columns in export: ", paste(missingCols, collapse = ", "))
   }
   
-  write.table(edges[availableCols], file = edgesPath, sep = "\t", row.names = FALSE, quote = FALSE)
+  # Save edges TSV using standardized saveObject
+  saveObject(edges[availableCols], edgesPath, config, "GRN edges table")
   
   # Save plot
   if (verbose) message("  Creating plot...")
   createAndSaveGrnPlot(graph, plotPath, title, config, edges, verbose = FALSE)
   
-  # Save GraphML
-  if (verbose) message("  Saving GraphML...")
-  createAndSaveGraphml(graph, graphmlPath, edges, verbose = FALSE)
+  # Enhance graph with metadata and save GraphML using standardized saveObject
+  enhancedGraph <- enhanceGraphWithMetadata(graph, edges, verbose = FALSE)
+  saveObject(enhancedGraph, graphmlPath, config, "GRN GraphML export")
   
   savedFiles <- list(
-    rds = rdsPath,
+    graphRds = graphRdsPath,
+    edgesRds = edgesRdsPath,
     edges = edgesPath,
     plot = plotPath,
     graphml = graphmlPath
@@ -591,25 +599,26 @@ saveEnhancedGrnOutputSet <- function(graph, edges, rdsPath, plotPath, graphmlPat
 }
 
 # ----------------------------------------------------------------------
-# buildEnhancedGrn
-# Constructs enhanced GRN by integrating SCENIC with GeneSwitches
+# buildGrn
+# Constructs GRN by integrating SCENIC with GeneSwitches
 # ----------------------------------------------------------------------
 
-#' Build enhanced gene regulatory network
+#' Build gene regulatory network
 #'
 #' Integrates SCENIC regulons with GeneSwitches temporal information to create
-#' an enhanced gene regulatory network. Performs correlation analysis, motif-aware
-#' sign assignment, composite ranking, and regulator capping for downstream
-#' Boolean network construction.
+#' an enhanced gene regulatory network. Now uses BINARY correlations for Boolean
+#' network compatibility. Performs correlation analysis, motif-aware sign assignment, 
+#' composite ranking, and regulator capping for downstream Boolean network construction.
 #'
 #' @param scenicOptions SCENIC options object containing pipeline results
 #' @param switchGenes Data frame with switch gene analysis results
-#' @param exprMat Expression matrix for correlation calculations
+#' @param exprMat Expression matrix (continuous, used for SCENIC compatibility)
+#' @param matBin Binary expression matrix for correlation calculations
 #' @param config Configuration object with GRN parameters
-#' @return Data frame with enhanced edge metadata
+#' @return Data frame with edge metadata
 #' @export
-buildEnhancedGrn <- function(scenicOptions, switchGenes, exprMat, config) {
-  if (config$verbose) message("Phase 3: Building enhanced GRN with GeneSwitches integration")
+buildGrn <- function(scenicOptions, switchGenes, exprMat, matBin, config) {
+  if (config$verbose) message("Phase 3: Building GRN with GeneSwitches integration")
   
   # Load SCENIC outputs with error handling
   tryCatch({
@@ -623,7 +632,7 @@ buildEnhancedGrn <- function(scenicOptions, switchGenes, exprMat, config) {
     stop("No regulons found - SCENIC pipeline may have failed or no significant regulons detected")
   }
   
-  # Extract edges from regulons, filter to switch genes  
+  # Extract edges from regulons, filter to switch genes + TFs for feedback loops
   scenicEdges <- purrr::map_dfr(names(regulons), function(tf) {
     targets <- regulons[[tf]]
     if (length(targets) > 0) {
@@ -635,8 +644,11 @@ buildEnhancedGrn <- function(scenicOptions, switchGenes, exprMat, config) {
     stop("No edges extracted from regulons - check SCENIC output integrity")
   }
   
+  # FIXED: Include TFs as potential targets to enable feedback loops
   switchGeneNames <- rownames(switchGenes)
-  scenicEdges <- scenicEdges %>% filter(Target %in% switchGeneNames)
+  allTFs <- getDbTfs(scenicOptions)
+  keepTargets <- union(switchGeneNames, allTFs)
+  scenicEdges <- scenicEdges %>% filter(Target %in% keepTargets)
   
   if (nrow(scenicEdges) == 0) {
     stop("No edges connect to switch genes - check gene name matching between SCENIC and GeneSwitches outputs")
@@ -649,24 +661,47 @@ buildEnhancedGrn <- function(scenicOptions, switchGenes, exprMat, config) {
   # Add SCENIC metadata (motif confidence, NES, etc.)
   scenicEdges <- extractScenicMetadata(scenicOptions, scenicEdges, config$verbose)
   
-  # Add correlations with improved error handling
-  validGenes <- intersect(rownames(exprMat), unique(c(scenicEdges$TF, scenicEdges$Target)))
+  # Add BINARY correlations with improved error handling
+  # CRITICAL FIX: Use binary matrix instead of continuous for Boolean network compatibility
+  validGenesExpr <- intersect(rownames(exprMat), unique(c(scenicEdges$TF, scenicEdges$Target)))
+  validGenesBin <- intersect(rownames(matBin), unique(c(scenicEdges$TF, scenicEdges$Target)))
+  validGenes <- intersect(validGenesExpr, validGenesBin)  # Must be in both matrices
+  
   if (length(validGenes) < 2) {
-    stop("Insufficient valid genes for correlation analysis - check expression matrix and gene names")
+    stop("Insufficient valid genes for correlation analysis - check expression matrices and gene names")
   }
   
+  # Filter both matrices to valid genes
   exprMat <- exprMat[validGenes, ]
+  matBin <- matBin[validGenes, ]
   scenicEdges <- scenicEdges %>% filter(TF %in% validGenes & Target %in% validGenes)
   
-  getCorrelation <- function(tf, tg) {
+  if (config$verbose) {
+    message("USING BINARY CORRELATIONS for Boolean network compatibility")
+    message("  Genes available in both matrices: ", length(validGenes))
+  }
+  
+  getBinaryCorrelation <- function(tf, tg) {
     tryCatch({
-      cor(exprMat[tf, ], exprMat[tg, ], method = "spearman", use = "complete.obs")
+      # Use binary matrix for correlation calculation
+      cor(matBin[tf, ], matBin[tg, ], method = "spearman", use = "complete.obs")
     }, error = function(e) {
-      warning("Correlation failed for ", tf, " -> ", tg, ": ", e$message)
+      warning("Binary correlation failed for ", tf, " -> ", tg, ": ", e$message)
       return(0)
     })
   }
-  scenicEdges$corr <- mapply(getCorrelation, scenicEdges$TF, scenicEdges$Target)
+  scenicEdges$corr <- mapply(getBinaryCorrelation, scenicEdges$TF, scenicEdges$Target)
+  
+  if (config$verbose) {
+    validCorrs <- scenicEdges$corr[is.finite(scenicEdges$corr)]
+    if (length(validCorrs) > 0) {
+      corrStats <- summary(as.numeric(validCorrs))
+      message("  Binary correlation statistics: Min=", round(corrStats[1], 3), 
+              ", Mean=", round(corrStats[4], 3), ", Max=", round(corrStats[6], 3))
+    } else {
+      message("  No valid correlations found")
+    }
+  }
   
   # Remove edges with failed correlations
   validCorr <- is.finite(scenicEdges$corr)
@@ -732,7 +767,7 @@ filterAndFinalizeGrn <- function(edges, config) {
     stop("No edges remain after NA filtering - check data quality")
   }
   
-  # Apply enhanced filtering with temporal and motif priors
+  # Apply enhanced filtering with motif priors
   keepEdges <- with(edges, {
     # Basic correlation filters (handle NAs safely)
     strongCorr <- (!is.na(corr)) & ((corr > config$grnPositiveThreshold) | (corr < -config$grnNegativeThreshold))
@@ -743,20 +778,8 @@ filterAndFinalizeGrn <- function(edges, config) {
       motifPrior <- (!is.na(motifConfidence)) & (motifConfidence > config$grnPriorThreshold)
     }
     
-    # Temporal consistency bonus (handle NAs)
-    temporalPrior <- FALSE  
-    if ("temporallyConsistent" %in% names(edges)) {
-      temporalPrior <- (!is.na(temporallyConsistent)) & (temporallyConsistent == TRUE)
-    }
-    
-    # High-quality switch genes get priority (handle NAs)
-    highQualityTarget <- FALSE
-    if ("targetPseudoR2" %in% names(edges)) {
-      highQualityTarget <- (!is.na(targetPseudoR2)) & (targetPseudoR2 > config$grnSwitchQualityThreshold)
-    }
-    
     # Keep edges that meet any of these criteria
-    strongCorr | motifPrior | temporalPrior | highQualityTarget
+    strongCorr | motifPrior
   })
   
   if (!any(keepEdges, na.rm = TRUE)) {
@@ -940,23 +963,25 @@ saveGrnOutputs <- function(grn, ptPaths, config) {
     return(invisible(grn))
   }
   
-  # Use trajectory-specific output paths
-  rdsPath     <- ptPaths$grnEdges
-  plotPath    <- ptPaths$grnPlot
-  graphmlPath <- ptPaths$grnGraphml
-  edgesPath   <- ptPaths$grnEdgesTsv
+  # Use trajectory-specific output paths - CORRECTED PATH ASSIGNMENTS
+  graphRdsPath <- ptPaths$grn           # Save igraph object here
+  edgesRdsPath <- ptPaths$grnEdges      # Save edges data frame here  
+  plotPath     <- ptPaths$grnPlot
+  graphmlPath  <- ptPaths$grnGraphml
+  edgesPath    <- ptPaths$grnEdgesTsv
   
-  # Save complete output set
-  saveEnhancedGrnOutputSet(
-    graph       = grn$graph,
-    edges       = grn$edges, 
-    rdsPath     = rdsPath,
-    plotPath    = plotPath,
-    graphmlPath = graphmlPath,
-    edgesPath   = edgesPath,
-    title       = "Gene Regulatory Network (GRN)",
-    config      = config,
-    verbose     = config$verbose
+  # Save complete output set with corrected paths
+  saveGrnOutputSet(
+    graph        = grn$graph,
+    edges        = grn$edges, 
+    graphRdsPath = graphRdsPath,        # igraph object
+    edgesRdsPath = edgesRdsPath,        # edges data frame
+    plotPath     = plotPath,
+    graphmlPath  = graphmlPath,
+    edgesPath    = edgesPath,           # TSV file
+    title        = "Gene Regulatory Network (GRN)",
+    config       = config,
+    verbose      = config$verbose
   )
   
   # Optional: preserve key SCENIC intermediate files
@@ -967,6 +992,9 @@ saveGrnOutputs <- function(grn, ptPaths, config) {
       }
       if (dir.exists("output")) {
         file.copy("output", ptPaths$scenic, recursive = TRUE)
+      }
+      if (dir.exists("Step3_RegulonActivity_tSNE_colByActivity")) {
+        file.copy("Step3_RegulonActivity_tSNE_colByActivity", ptPaths$scenic, recursive = TRUE)
       }
       if (config$verbose) message("Preserved SCENIC files to: ", ptPaths$scenic)
       
@@ -979,6 +1007,10 @@ saveGrnOutputs <- function(grn, ptPaths, config) {
         if (dir.exists("output")) {
           unlink("output", recursive = TRUE)
           if (config$verbose) message("Cleaned up original output/ folder")
+        }
+        if (dir.exists("Step3_RegulonActivity_tSNE_colByActivity")) {
+          unlink("Step3_RegulonActivity_tSNE_colByActivity", recursive = TRUE)
+          if (config$verbose) message("Cleaned up original Step3_RegulonActivity_tSNE_colByActivity/ folder")
         }
       }
     }, error = function(e) {

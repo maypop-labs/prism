@@ -3,12 +3,6 @@
 # Purpose: Generate production-quality Boolean rules using `i + k` + SCENIC data
 # =============================================================================
 
-# Core Philosophy: 
-# - Leverage all SCENIC/GENIE3 information (regType, motif confidence, correlation)
-# - Multi-method approach (empirical + template + fallback)
-# - Error handling and resumable execution
-# - BoolNet-ready output with comprehensive validation
-
 source("managers/booleanManager.R")
 source("managers/booleanReportManager.R")
 source("managers/pathManager.R")
@@ -25,17 +19,8 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- STAGE 1: Robust Data Loading and Validation ---
-cds   <- loadMonocle3GeneSwitches(ptPaths, config)
-edges <- readRDS(ptPaths$grnEdges)
-
-# Convert igraph object to data frame if necessary
-if (inherits(edges, "igraph")) {
-  library(igraph)
-  edges <- igraph::as_data_frame(edges, what = "edges")
-  # Rename igraph columns to expected format
-  names(edges)[names(edges) == "from"] <- "TF"
-  names(edges)[names(edges) == "to"] <- "Target"
-}
+cds   <- loadMonocle3(ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory")
+edges <- loadObject(ptPaths$grnEdges, config, "GRN edges")
 
 # Validate SCENIC metadata columns
 required_cols <- c("TF", "Target", "corr")
@@ -49,15 +34,9 @@ if (!"regType" %in% colnames(edges)) {
   message("Adding default regType (Activation) - consider running SCENIC with regulatory direction")
   edges$regType <- "Activation"
 }
-if (!"motifConfidence" %in% colnames(edges)) {
-  edges$motifConfidence <- NA
-}
-if (!"NES" %in% colnames(edges)) {
-  edges$NES <- NA
-}
-if (!"hasMotif" %in% colnames(edges)) {
-  edges$hasMotif <- NA
-}
+if (!"motifConfidence" %in% colnames(edges)) { edges$motifConfidence <- NA }
+if (!"NES" %in% colnames(edges)) { edges$NES <- NA }
+if (!"hasMotif" %in% colnames(edges)) { edges$hasMotif <- NA }
 
 message("Data validation complete:")
 message("  - CDS object: ", nrow(cds), " genes, ", ncol(cds), " cells")
@@ -68,8 +47,8 @@ message("  - SCENIC columns: ", paste(colnames(edges), collapse = ", "))
 message("=== STAGE 2: Sanitizing gene names for BoolNet compatibility ===")
 
 # Generate comprehensive gene name mapping
-allGenes <- unique(c(rownames(cds), edges$TF, edges$Target))
-geneMap  <- generateSanitizedGeneMapping(allGenes)
+allGenes   <- unique(c(rownames(cds), edges$TF, edges$Target))
+geneMap    <- generateSanitizedGeneMapping(allGenes)
 geneLookup <- setNames(geneMap$SanitizedName, geneMap$OriginalName)
 
 message("Gene name mapping:")
@@ -77,22 +56,17 @@ message("  - Total unique genes: ", length(allGenes))
 message("  - Genes requiring sanitization: ", sum(geneMap$OriginalName != geneMap$SanitizedName))
 
 # Apply sanitization to expression matrix
-matBin <- assay(cds, "binary")
-genesInEdges <- unique(c(edges$TF, edges$Target))
-matBin <- matBin[rownames(matBin) %in% genesInEdges, ]
-
-originalRowNames <- rownames(matBin)
+matBin            <- assay(cds, "binary")
+genesInEdges      <- unique(c(edges$TF, edges$Target))
+matBin            <- matBin[rownames(matBin) %in% genesInEdges, ]
+originalRowNames  <- rownames(matBin)
 sanitizedRowNames <- sapply(originalRowNames, function(g) geneLookup[[g]] %||% g)
-rownames(matBin) <- sanitizedRowNames
-
-# Apply sanitization to edge list
-edges$TF <- sapply(edges$TF, function(g) geneLookup[[g]] %||% g)
-edges$Target <- sapply(edges$Target, function(g) geneLookup[[g]] %||% g)
-
-# Remove edges with genes missing from expression matrix
-validTFs <- edges$TF %in% rownames(matBin)
-validTargets <- edges$Target %in% rownames(matBin)
-validEdges <- validTFs & validTargets
+rownames(matBin)  <- sanitizedRowNames
+edges$TF          <- sapply(edges$TF, function(g) geneLookup[[g]] %||% g)
+edges$Target      <- sapply(edges$Target, function(g) geneLookup[[g]] %||% g)
+validTFs          <- edges$TF %in% rownames(matBin)
+validTargets      <- edges$Target %in% rownames(matBin)
+validEdges        <- validTFs & validTargets
 
 if (sum(!validEdges) > 0) {
   message("Removing ", sum(!validEdges), " edges with genes missing from expression matrix")
@@ -114,32 +88,23 @@ message("  - Cell ordering: ", length(cellOrder), " cells ordered by pseudotime"
 message("  - Max regulators per gene: ", config$boolMaxRegulators)
 message("  - Minimum rule score: ", config$boolMinScore)
 
-# --- STAGE 4: Enhanced Boolean Rule Inference ---
-message("=== STAGE 4: SCENIC-enhanced Boolean rule inference ===")
+# --- STAGE 4: Boolean Rule Inference ---
+message("=== STAGE 4: SCENIC-integrated Boolean rule inference ===")
 
-targets <- unique(edges$Target)
+# FIXED: Create rules for all genes mentioned in network (TFs + Targets) to ensure complete coverage
+allNodes <- union(unique(edges$Target), unique(edges$TF))
+allNodes <- intersect(allNodes, rownames(matBin))  # Filter to genes present in expression matrix
+targets <- allNodes
 total <- length(targets)
 
 if (total == 0) {
   stop("No target genes found in edge list")
 }
 
-message("Processing ", total, " target genes...")
+message("Processing ", total, " genes (targets + TFs for complete network coverage)...")
 
 # Initialize results storage
 boolRules <- list()
-
-# Resume support
-checkpoint_file <- file.path(paths$base$rds, paste0(cellType, "_", trajectory, "_boolean_checkpoint.rds"))
-completed_genes <- character(0)
-
-if (file.exists(checkpoint_file)) {
-  checkpoint <- readRDS(checkpoint_file)
-  boolRules <- checkpoint$rules
-  completed_genes <- checkpoint$completed
-  targets <- setdiff(targets, completed_genes)
-  message("Resuming from checkpoint: ", length(completed_genes), " genes already completed")
-}
 
 # Main processing loop
 pb <- txtProgressBar(min = 0, max = length(targets), style = 3)
@@ -166,14 +131,6 @@ for (i in seq_along(targets)) {
         boolRules[[target]] <- createIntelligentFallback(target, regulator_info, matBin, config)
       }
     }
-    
-    # Checkpoint every N genes
-    if (i %% config$boolCheckpointInterval == 0) {
-      completed_genes <- c(completed_genes, names(boolRules))
-      saveRDS(list(rules = boolRules, completed = unique(completed_genes)), checkpoint_file)
-      message("\nCheckpoint saved at gene ", i, "/", length(targets))
-    }
-    
   }, error = function(e) {
     warning("Failed to process ", target, ": ", e$message)
     boolRules[[target]] <- createFallbackRule(target, matBin, config)
@@ -182,11 +139,6 @@ for (i in seq_along(targets)) {
 
 close(pb)
 
-# Final checkpoint cleanup
-if (file.exists(checkpoint_file)) {
-  file.remove(checkpoint_file)
-}
-
 message("\nPrimary rule inference complete:")
 message("  - Rules synthesized: ", length(boolRules), " target genes")
 
@@ -194,8 +146,8 @@ message("  - Rules synthesized: ", length(boolRules), " target genes")
 message("=== STAGE 5: Adding self-activation rules for genes without rules ===")
 
 # Find all genes mentioned as regulators but lacking rules
-ruleGenes <- names(boolRules)
-genesInRules <- unique(unlist(lapply(boolRules, function(x) x$regulators)))
+ruleGenes         <- names(boolRules)
+genesInRules      <- unique(unlist(lapply(boolRules, function(x) x$regulators)))
 allMentionedGenes <- unique(c(ruleGenes, genesInRules))
 genesNeedingRules <- setdiff(intersect(allMentionedGenes, rownames(matBin)), ruleGenes)
 
@@ -240,8 +192,8 @@ if (config$saveResults) {
   message("=== STAGE 7: Saving results and generating reports ===")
   
   # Save main results
-  saveBooleanRules(boolRules, ptPaths, config)
-  saveGeneMap(geneMap, ptPaths, config)
+  saveObject(boolRules, ptPaths$booleanRules, config, "Boolean rules")
+  saveObject(geneMap, ptPaths$geneMap, config, "gene mapping")
   
   # Generate comprehensive output tables
   message("Generating output tables...")
@@ -269,8 +221,7 @@ if (config$saveResults) {
     stringsAsFactors = FALSE
   )
   
-  analysisFile <- paste0(paths$base$tsv, cellType, "_", trajectory, "_boolean_rules_analysis.tsv")
-  write.table(ruleAnalysis, analysisFile, sep = "\t", row.names = FALSE, quote = FALSE)
+  write.table(ruleAnalysis, ptPaths$booleanRulesAnalysis, sep = "\t", row.names = FALSE, quote = FALSE)
   
   # Flat regulator table for compatibility
   rulesFlat <- data.frame(
@@ -288,15 +239,14 @@ if (config$saveResults) {
     stringsAsFactors = FALSE
   )
   
-  flatFile <- paste0(paths$base$tsv, cellType, "_", trajectory, "_boolean_rules.tsv")
-  write.table(rulesFlat, flatFile, sep = "\t", row.names = FALSE, quote = FALSE)
+  write.table(rulesFlat, ptPaths$booleanRulesFlat, sep = "\t", row.names = FALSE, quote = FALSE)
   
-  # Generate enhanced report with SCENIC integration
+  # Generate report with SCENIC integration
   tryCatch({
     generateBooleanRuleReport(boolRules, edges, paths, cellType, trajectory, config)
-    message("Enhanced SCENIC-integrated report generated successfully!")
+    message("SCENIC-integrated report generated successfully!")
   }, error = function(e) {
-    warning("Could not generate enhanced report: ", e$message)
+    warning("Could not generate report: ", e$message)
   })
 }
 
@@ -304,7 +254,7 @@ if (config$saveResults) {
 message("\n" , paste(rep("=", 60), collapse = ""))
 message("PRODUCTION BOOLEAN RULE INFERENCE COMPLETE")
 message(paste(rep("=", 60), collapse = ""))
-message("SUCCESS: Generated ", length(boolRules), " Boolean rules using SCENIC-enhanced approach")
+message("SUCCESS: Generated ", length(boolRules), " Boolean rules using SCENIC-integrated approach")
 message("")
 message("Key achievements:")
 message("✓ Used k=0 (same pseudotime) for maximum statistical power")

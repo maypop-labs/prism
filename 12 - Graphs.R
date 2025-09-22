@@ -1,137 +1,114 @@
-# ======================================================================
-# 13 - Graphs
-# Purpose: Load saved data objects and generate graphs to illustrate
-#          key steps of the project without revealing the actual gene
-#          names.
-# ======================================================================
+# =============================================================================
+# 12 - Graphs.R
+# Purpose: Generate visualizations of PRISM analysis results
+# =============================================================================
 
-# --- Load Required Libraries ---
-library(Seurat)
-library(monocle3)
-library(ggplot2)
-library(igraph)
-library(dplyr)
-library(tidyr)
-library(readr)
+# Load required packages and initialize paths
+source("managers/attractorManager.R")
+source("managers/pathManager.R")
+source("managers/setupManager.R")
+source("managers/uiManager.R")
+config     <- initializeScript()
+pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths      <- pathInfo$paths
+cellType   <- pathInfo$cellType
+trajectory <- pathInfo$trajectory
+ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 
-# --- 1. PCA/UMAP Plot from Seurat Object ---
-# Load your merged Seurat object (adjust file path as needed)
-seurat_file <- "E:/datasets/omics/skin/results/rds/merged_seurat.rds"  # Adjust path if necessary
-seurat_obj <- readRDS(seurat_file)
+# Ensure plots directory exists
+if (!dir.exists(paths$base$plots)) {
+  dir.create(paths$base$plots, recursive = TRUE)
+}
 
-# Generate a UMAP plot colored by donor age (or any other metadata)
-umap_plot <- DimPlot(seurat_obj, reduction = "umap", group.by = "age") +
-  ggtitle("UMAP Plot of All Cells (by Age)") +
-  theme_minimal()
+message("Loading data for visualization...")
 
-# Save UMAP plot
-ggsave("D:/projects/Gene Regulatory Network Perterbation in Aging/R Plots/umap_plot.png", plot = umap_plot, width = 8, height = 6)
+# Load data objects
+seuratMerged <- loadObject(paths$static$seuratMerged, config, "merged Seurat object")
+cds <- loadMonocle3(ptPaths$monocle3, config, "pseudotime trajectory")
 
+# Create generic gene mapping for IP protection
+allGenes <- rownames(seuratMerged)
+set.seed(config$randomSeed)  # Reproducible mapping
+genericNames <- paste0("Gene", sprintf("%04d", sample(1:9999, length(allGenes))))
+geneMapping <- setNames(genericNames, allGenes)
 
-# --- 2. Pseudotime Trajectory from Monocle3 Object ---
-# Load the Monocle3 object for keratinocytes trajectory ("Y_447" smoothed)
-# (Assumes you have a function called load_monocle_objects; adjust as needed.)
-monocle_dir <- "E:/datasets/omics/skin/results/monocle3/monocle3_Keratinocytes_Y_447_smoothed"  # Update path if necessary
-cds <- load_monocle_objects(directory_path = monocle_dir)  # Custom helper function
+message("Creating visualizations...")
 
-# Plot the pseudotime trajectory with cells colored by pseudotime value
-pt_plot <- plot_cells(
-  cds,
-  color_cells_by = "pseudotime",
-  label_cell_groups = FALSE,
-  show_trajectory_graph = TRUE
-) + 
-  ggtitle("Pseudotime Trajectory") +
-  theme_minimal()
+# Publication theme
+applyPublicationTheme <- function(plot) {
+  plot + 
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, hjust = 0.5, face = "bold"),
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 10),
+      legend.title = element_text(size = 12, face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+}
 
-# Save pseudotime plot
-ggsave("D:/projects/Gene Regulatory Network Perterbation in Aging/R Plots/pseudotime_plot.png", plot = pt_plot, width = 8, height = 6)
+# 1. UMAP Plot by Age
+umapPlot <- NULL
+if ("umap" %in% names(seuratMerged@reductions)) {
+  umapPlot <- DimPlot(seuratMerged, reduction = "umap", group.by = "age", pt.size = 0.5) +
+    ggtitle("UMAP Embedding by Donor Age") +
+    labs(x = "UMAP1", y = "UMAP2", color = "Age") +
+    applyPublicationTheme()
+} else if ("umap.unintegrated" %in% names(seuratMerged@reductions)) {
+  umapPlot <- DimPlot(seuratMerged, reduction = "umap.unintegrated", group.by = "age", pt.size = 0.5) +
+    ggtitle("UMAP Embedding by Donor Age") +
+    labs(x = "UMAP1", y = "UMAP2", color = "Age") +
+    applyPublicationTheme()
+}
 
+# 2. Pseudotime Trajectory
+pseudotimePlot <- plot_cells(cds,
+         color_cells_by = "pseudotime",
+         label_cell_groups = FALSE,
+         show_trajectory_graph = TRUE) +
+  ggtitle("Pseudotime Trajectory Analysis") +
+  applyPublicationTheme()
 
-# --- 3. Gene Regulatory Network (GRN) Visualization ---
-# Load the GRN edges RDS file
-grn_edges_file <- "E:/datasets/omics/skin/results/rds/Keratinocytes_Y_447_GRN_Part_02_edges.rds"
-grn_edges <- readRDS(grn_edges_file)
+# 3. Cell Count by Age
+cellCounts <- table(seuratMerged$age)
+cellCountDf <- data.frame(
+  Age = names(cellCounts),
+  CellCount = as.numeric(cellCounts)
+)
 
-# Expect grn_edges to have columns "TF" and "Target". Create a mapping to generic names.
-all_genes <- unique(c(as.character(grn_edges$TF), as.character(grn_edges$Target)))
-generic_names <- paste0("Gene", seq_along(all_genes))
-gene_mapping <- setNames(generic_names, all_genes)
+cellCountPlot <- ggplot(cellCountDf, aes(x = Age, y = CellCount, fill = Age)) +
+  geom_col(alpha = 0.8) +
+  scale_fill_viridis_d() +
+  ggtitle("Cell Count Distribution by Age") +
+  labs(x = "Donor Age", y = "Number of Cells") +
+  applyPublicationTheme() +
+  theme(legend.position = "none")
 
-# Replace gene names with generic names in the edge table
-grn_edges$TF_gen <- gene_mapping[as.character(grn_edges$TF)]
-grn_edges$Target_gen <- gene_mapping[as.character(grn_edges$Target)]
+# Save plots
+if (config$saveResults) {
+  plotList <- list(
+    umap_plot = umapPlot,
+    pseudotime_plot = pseudotimePlot,
+    cell_count_plot = cellCountPlot
+  )
+  
+  # Remove NULL plots
+  plotList <- plotList[!sapply(plotList, is.null)]
+  
+  savedPlots <- character()
+  for (plotName in names(plotList)) {
+    plotObj <- plotList[[plotName]]
+    
+    if (!is.null(plotObj)) {
+      fileName <- paste0(cellType, "_", trajectory, "_", plotName, ".png")
+      filePath <- file.path(paths$base$plots, fileName)
+      
+      ggsave(filePath, plot = plotObj, width = 10, height = 8, dpi = 300)
+      savedPlots <- c(savedPlots, fileName)
+    }
+  }
+  
+}
 
-# Build an igraph network from the pruned edge table
-grn_graph <- graph_from_data_frame(grn_edges[, c("TF_gen", "Target_gen")], directed = TRUE)
-
-# Plot the network. Adjust vertex size and arrow size as desired.
-png("grn_network.png", width = 800, height = 600)
-plot(grn_graph,
-     vertex.label = V(grn_graph)$name,
-     vertex.size = 5,
-     vertex.label.cex = 0.8,
-     edge.arrow.size = 0.5,
-     main = "Gene Regulatory Network (Generic Gene Names)")
-dev.off()
-
-
-# --- 4. Attractor Landscape Plot ---
-# Load attractor data frame containing AgeScore and BasinSize (anonymized)
-attractor_df_file <- "E:/datasets/omics/skin/results/rds/Keratinocytes_Y_447_attractor_df.rds"
-attractor_df <- readRDS(attractor_df_file)
-# Expect attractor_df to have columns such as Attractor, AgeScore, BasinSize.
-# Relabel attractors generically (e.g., Attractor1, Attractor2, etc.)
-attractor_df$Attractor <- paste0("Attractor", attractor_df$Attractor)
-
-landscape_plot <- ggplot(attractor_df, aes(x = AgeScore, y = BasinSize)) +
-  geom_point(color = "blue", size = 3) +
-  #geom_text(aes(label = Attractor), vjust = -0.5) +
-  labs(title = "Attractor Landscape", x = "Age Score (0 = Young, 1 = Old)", y = "Basin Size Fraction") +
-  theme_minimal()
-
-# Save attractor landscape plot
-ggsave("D:/projects/Gene Regulatory Network Perterbation in Aging/R Plots/attractor_landscape.png", plot = landscape_plot, width = 8, height = 6)
-
-
-# --- 5. Perturbation Analysis Results ---
-# Load final single-gene perturbation results (two files for different modes, e.g., knockdown and overexpression)
-perturb_file0 <- "E:/datasets/omics/skin/results/rds/Keratinocytes_Y_447_final_single_targets_0.rds"
-perturb_file1 <- "E:/datasets/omics/skin/results/rds/Keratinocytes_Y_447_final_single_targets_1.rds"
-perturb_data0 <- readRDS(perturb_file0)
-perturb_data1 <- readRDS(perturb_file1)
-
-# Combine and label the mode (here we assume a column "Gene" and "AgingScore" exist)
-perturb_data0 <- perturb_data0 %>% mutate(Mode = "Knockdown")
-perturb_data1 <- perturb_data1 %>% mutate(Mode = "Overexpression")
-perturb_df <- bind_rows(perturb_data0, perturb_data1)
-
-# Map actual gene names to generic names
-unique_perturb_genes <- unique(as.character(perturb_df$Gene))
-perturb_generic <- paste0("Gene", seq_along(unique_perturb_genes))
-perturb_mapping <- setNames(perturb_generic, unique_perturb_genes)
-perturb_df$Gene_gen <- perturb_mapping[as.character(perturb_df$Gene)]
-
-# Create a dot plot of Aging Score per gene for each perturbation mode
-perturb_plot <- ggplot(perturb_df, aes(x = reorder(Gene_gen, AgingScore), y = AgingScore, color = Mode)) +
-  geom_point(size = 3) +
-  coord_flip() +
-  labs(title = "Perturbation Analysis: Aging Scores (Generic Genes)",
-       x = "Gene (Generic)",
-       y = "Aging Score") +
-  theme_minimal()
-
-# Save perturbation plot
-ggsave("D:/projects/Gene Regulatory Network Perterbation in Aging/R Plots/perturbation_results.png", plot = perturb_plot, width = 8, height = 6)
-
-
-# --- 6. (Optional) PCA Plot from Seurat Object ---
-# In case you want a PCA plot as well
-pca_plot <- DimPlot(seurat_obj, reduction = "pca", group.by = "age") +
-  ggtitle("PCA Plot (By Age)") +
-  theme_minimal()
-ggsave("D:/projects/Gene Regulatory Network Perterbation in Aging/R Plots/pca_plot.png", plot = pca_plot, width = 8, height = 6)
-
-# ======================================================================
-# End of Script
-# ======================================================================
+message("Done!")

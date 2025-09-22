@@ -102,7 +102,7 @@ if (config$saveResults) {
          dpi    = config$figDPI,
          units  = "in")
   
-  saveMergedSeurat(seuratMerged, paths, config)
+  saveObject(seuratMerged, paths$static$seuratMerged, config, "merged Seurat object")
 }
 
 message("Done!")

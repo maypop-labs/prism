@@ -20,7 +20,7 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- Load Data ---
-seuratObj <- loadSeuratByCellType(ctPaths, config)
+seuratObj <- loadObject(ctPaths$seuratObject, config, "cell type Seurat object")
 
 # --- Convert to Monocle3 CellDataSet ---
 cds <- convertSeuratToCDS(seuratObj)
@@ -79,7 +79,7 @@ for (leaf in leafNodes) {
     retainedLeaves <- c(retainedLeaves, leaf)
 
     if (config$saveResults) {
-      savePseudotimeTrajectory(subCds, ptPaths, config)
+      saveMonocle3(subCds, ptPaths$monocle3, config, "pseudotime trajectory")
     }
   }
 }
@@ -91,13 +91,8 @@ branch_stats <- branch_stats |>
 
 # --- Save Results ---
 if (config$saveResults) {
-  
-  readr::write_tsv(branch_stats, ctPaths$trajectoryCorrelations)
-  if (config$verbose) { message("Saved branch statistics report to ", ctPaths$trajectoryCorrelations) }
-
-  saveRDS(retainedLeaves, ctPaths$retainedTrajectories)
-  if (config$verbose) { message("Saved retained trajectory names to ", ctPaths$retainedTrajectories) }
-  
+  saveObject(branch_stats, ctPaths$trajectoryCorrelations, config, "branch statistics report")
+  saveObject(retainedLeaves, ctPaths$retainedTrajectories, config, "retained trajectory names")
 }
 
 # --- Create and Save Plots ---
@@ -106,16 +101,14 @@ if (config$saveResults && length(retainedLeaves) > 0) {
 
   # Create the plots
   trajectoryPlots <- createTrajectoryPlots(
-    cds = cds,
+    cds            = cds,
     retainedLeaves = retainedLeaves,
-    branchStats = branch_stats,
-    basePaths = paths$base,
-    cellType = cellType,
-    config = config,
+    branchStats    = branch_stats,
+    basePaths      = paths$base,
+    cellType       = cellType,
+    config         = config,
     saveIndividual = TRUE
   )
-  
-  if (config$verbose) { message("Plots saved to: ", paths$base$plots) }
 }
 
 if (config$verbose) { message(retained, " valid trajectory branch(es).") }

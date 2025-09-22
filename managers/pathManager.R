@@ -11,6 +11,7 @@
 #' Build base directory paths
 #' @param config Configuration object from yaml::read_yaml("config.yaml")
 #' @return Named list of base directory paths
+#' @export
 buildBasePaths <- function(config) {
   rootPath <- config$rootPath
   
@@ -32,6 +33,7 @@ buildBasePaths <- function(config) {
 #' Build CellRanger input paths
 #' @param config Configuration object
 #' @return Vector of CellRanger paths for each sample
+#' @export
 buildCellrangerPaths <- function(config) {
   basePath <- paste0(config$rootPath, "cellranger_counts/")
   paste0(basePath, config$donorIDs, "_output/outs/filtered_feature_bc_matrix/")
@@ -44,6 +46,7 @@ buildCellrangerPaths <- function(config) {
 #' Get static file paths that don't depend on cell type or trajectory
 #' @param basePaths List from buildBasePaths()
 #' @return Named list of static file paths
+#' @export
 getStaticFilePaths <- function(basePaths) {
   list(
     # Main Seurat objects
@@ -67,6 +70,7 @@ getStaticFilePaths <- function(basePaths) {
 #' @param basePaths List from buildBasePaths()
 #' @param cellType Cell type string
 #' @return Named list of cell type-specific paths
+#' @export
 getCellTypeFilePaths <- function(basePaths, cellType) {
 
   list(
@@ -94,6 +98,7 @@ getCellTypeFilePaths <- function(basePaths, cellType) {
 #' @param cellType Cell type string
 #' @param trajectory Trajectory string
 #' @return Named list of cell type + trajectory-specific paths
+#' @export
 getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
   basePrefix <- paste0(cellType, "_", trajectory)
   
@@ -126,8 +131,24 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     boolNetTsv   = paste0(basePaths$tsv, basePrefix, "_boolNet_analysis.tsv"),
     
     # Attractor analysis files
-    attractorEntropy = paste0(basePaths$rds, basePrefix, "_attractor_entropy.rds"),
-    agingScore       = paste0(basePaths$rds, basePrefix, "_aging_score.rds"),
+    attractorEntropy        = paste0(basePaths$rds, basePrefix, "_attractor_entropy.rds"),
+    agingScore              = paste0(basePaths$rds, basePrefix, "_aging_score.rds"),
+    referenceVectors        = paste0(basePaths$rds, basePrefix, "_reference_vectors.rds"),
+    attractorScoresCombined = paste0(basePaths$rds, basePrefix, "_attractor_scores_combined.rds"),
+    networkAgingSummary     = paste0(basePaths$rds, basePrefix, "_network_aging_summary.rds"),
+
+    # Perturbation analysis files
+    singleTargetsKD         = paste0(basePaths$rds, basePrefix, "_single_targets_KD.rds"),
+    singleTargetsOE         = paste0(basePaths$rds, basePrefix, "_single_targets_OE.rds"),
+    perturbationSummary     = paste0(basePaths$rds, basePrefix, "_perturbation_summary.rds"),
+
+    # Final analysis files
+    finalTargetRankings     = paste0(basePaths$rds, basePrefix, "_final_target_rankings.rds"),
+    targetSummaryTsv        = paste0(basePaths$tsv, basePrefix, "_target_summary.tsv"),
+
+    # Boolean analysis reports (additional TSV outputs)
+    booleanRulesAnalysis    = paste0(basePaths$tsv, basePrefix, "_boolean_rules_analysis.tsv"),
+    booleanRulesFlat        = paste0(basePaths$tsv, basePrefix, "_boolean_rules.tsv"),
     
     # GraphML exports
     grnPlot    = paste0(basePaths$plots,   basePrefix, "_GRN.png"),
@@ -140,35 +161,6 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
 }
 
 # =============================================================================
-# Perturbation-Specific Paths
-# =============================================================================
-
-#' Build paths for individual gene perturbation results
-#' @param basePaths List from buildBasePaths()
-#' @param cellType Cell type string
-#' @param trajectory Trajectory string
-#' @param geneName Gene name
-#' @param perturbationType "0" (knockout), "1" (overexpression), "KD_KD", "OE_OE", "KD_OE"
-#' @return File path for perturbation result
-getPerturbationFilePath <- function(basePaths, cellType, trajectory, geneName, perturbationType) {
-  basePrefix <- paste0(cellType, "_", trajectory)
-  paste0(basePaths$rds, basePrefix, "_", geneName, "_", perturbationType, ".rds")
-}
-
-#' Build paths for combination perturbation results
-#' @param basePaths List from buildBasePaths()
-#' @param cellType Cell type string
-#' @param trajectory Trajectory string
-#' @param gene1 First gene name
-#' @param gene2 Second gene name
-#' @param combinationType "KD_KD", "OE_OE", "KD_OE"
-#' @return File path for combination perturbation result
-getCombinationPerturbationFilePath <- function(basePaths, cellType, trajectory, gene1, gene2, combinationType) {
-  basePrefix <- paste0(cellType, "_", trajectory)
-  paste0(basePaths$rds, basePrefix, "_", gene1, "_", gene2, "_", combinationType, ".rds")
-}
-
-# =============================================================================
 # Master Path Builder Function
 # =============================================================================
 
@@ -177,6 +169,7 @@ getCombinationPerturbationFilePath <- function(basePaths, cellType, trajectory, 
 #' @param cellType Optional cell type (if NULL, only static paths returned)
 #' @param trajectory Optional trajectory (requires cellType)
 #' @return Named list containing all relevant paths
+#' @export
 buildProjectPaths <- function(config, cellType = NULL, trajectory = NULL) {
   basePaths <- buildBasePaths(config)
   
@@ -201,19 +194,11 @@ buildProjectPaths <- function(config, cellType = NULL, trajectory = NULL) {
 # Convenience Functions for Scripts
 # =============================================================================
 
-#' Initialize paths for a script with known cell type and trajectory
-#' @param cellType Cell type string
-#' @param trajectory Trajectory string
-#' @return List of paths ready for use
-initializeScriptPaths <- function(cellType = NULL, trajectory = NULL) {
-  config <- yaml::read_yaml("config.yaml")
-  buildProjectPaths(config, cellType, trajectory)
-}
-
 #' Initialize paths for scripts that need to select cell type/trajectory interactively
 #' @param needsCellType Boolean indicating if cell type selection is needed
 #' @param needsTrajectory Boolean indicating if trajectory selection is needed
 #' @return List containing paths and selected cellType/trajectory
+#' @export
 initializeInteractivePaths <- function(needsCellType = FALSE, needsTrajectory = FALSE) {
   config <- yaml::read_yaml("config.yaml")
   basePaths <- buildBasePaths(config)
@@ -254,6 +239,7 @@ initializeInteractivePaths <- function(needsCellType = FALSE, needsTrajectory = 
 
 #' Ensure all required directories exist
 #' @param paths Path structure from buildProjectPaths()
+#' @export
 ensureProjectDirectories <- function(paths) {
   # Create all base directories
   lapply(paths$base, function(path) {
@@ -272,106 +258,267 @@ ensureProjectDirectories <- function(paths) {
 }
 
 # =============================================================================
-# File Loading
+# Universal File I/O Functions
 # =============================================================================
 
+#' Universal save function with automatic file type detection
+#' @param object Object to save
+#' @param filepath Full file path with extension
+#' @param config Configuration object
+#' @param objectName Optional name for verbose output (defaults to deparse)
+#' @export
+saveObject <- function(object, filepath, config, objectName = NULL) {
+  if (is.null(objectName)) {
+    objectName <- deparse(substitute(object))
+  }
+  
+  # Auto-detect file type from extension
+  ext <- tools::file_ext(filepath)
+  
+  if (config$verbose) {
+    message("Saving ", objectName, " (", toupper(ext), ")")
+  }
+  
+  switch(tolower(ext),
+    "rds" = saveRDS(object, file = filepath),
+    "tsv" = write.table(object, file = filepath, sep = "\t", quote = FALSE, row.names = FALSE),
+    "txt" = writeLines(object, con = filepath),
+    "json" = jsonlite::write_json(object, path = filepath),
+    "graphml" = igraph::write_graph(object, file = filepath, format = "graphml"),
+    stop("Unsupported file type: ", ext)
+  )
+}
+
+#' Universal load function with automatic file type detection  
+#' @param filepath Full file path with extension
+#' @param config Configuration object
+#' @param objectName Optional name for verbose output
+#' @param required Whether to stop on missing file (default TRUE)
+#' @return Loaded object
+#' @export
+loadObject <- function(filepath, config, objectName = NULL, required = TRUE) {
+  if (!file.exists(filepath)) {
+    msg <- paste("File not found:", filepath)
+    if (required) stop(msg) else {warning(msg); return(NULL)}
+  }
+  
+  if (is.null(objectName)) {
+    objectName <- tools::file_path_sans_ext(basename(filepath))
+  }
+  
+  ext <- tools::file_ext(filepath)
+  
+  if (config$verbose) {
+    message("Loading ", objectName, " (", toupper(ext), ")")
+  }
+  
+  switch(tolower(ext),
+    "rds" = readRDS(filepath),
+    "tsv" = read.table(filepath, sep = "\t", header = TRUE, stringsAsFactors = FALSE),
+    "txt" = readLines(filepath),
+    "json" = jsonlite::read_json(filepath),
+    "graphml" = igraph::read_graph(filepath, format = "graphml"),
+    stop("Unsupported file type: ", ext)
+  )
+}
+
+# =============================================================================
+# Special Case Handlers for Monocle3
+# =============================================================================
+
+#' Load Monocle3 objects (special case for directories)
+#' @param directory Directory path containing Monocle3 objects
+#' @param config Configuration object
+#' @param objectName Optional name for verbose output
+#' @return Monocle3 CellDataSet object
+#' @export
+loadMonocle3 <- function(directory, config, objectName = "Monocle3 object") {
+  if (!dir.exists(directory)) stop("Directory not found: ", directory)
+  if (config$verbose) message("Loading ", objectName)
+  load_monocle_objects(directory_path = directory)
+}
+
+#' Save Monocle3 objects (special case for directories)
+#' @param cds Monocle3 CellDataSet object
+#' @param directory Directory path to save Monocle3 objects
+#' @param config Configuration object
+#' @param objectName Optional name for verbose output
+#' @export
+saveMonocle3 <- function(cds, directory, config, objectName = "Monocle3 object") {
+  if (config$verbose) message("Saving ", objectName)
+  save_monocle_objects(cds = cds, directory_path = directory)
+}
+
+# =============================================================================
+# Convenience Wrapper Functions (for backward compatibility)
+# =============================================================================
+
+# Boolean Rules
+#' Load Boolean rules from file
+#' @param ptPaths Path structure containing booleanRules path
+#' @param config Configuration object
+#' @return Boolean rules object
+#' @export
 loadBooleanRules <- function(ptPaths, config) {
-  if (!file.exists(ptPaths$booleanRules)) stop("Boolean rules RDS file not found: ", ptPaths$booleanRules)
-  if (config$verbose) { message("Loading Boolean rules RDS file") }
-  booleanRules <- readRDS(ptPaths$booleanRules)
-  return(booleanRules)  
+  loadObject(ptPaths$booleanRules, config, "Boolean rules")
 }
 
-loadMergedSeurat <- function(paths, config) {
-  if (!file.exists(paths$static$seuratMerged)) stop("Merged Seurat object not found")
-  if (config$verbose) { message("Loading merged Seurat RDS file") }
-  seuratMerged <- readRDS(paths$static$seuratMerged)
-  return(seuratMerged)
-}
-
-loadPseudotimeTrajectory <- function(ptPaths, config) {
-  if (!dir.exists(ptPaths$monocle3)) stop("Monocle3 object directory not found: ", ptPaths$monocle3)
-  if (config$verbose) { message("Loading pseudotime trajectory") }
-  cds <- load_monocle_objects(directory_path = ptPaths$monocle3)
-  return(cds)
-}
-
-loadMonocle3GeneSwitches <- function(ptPaths, config) {
-  if (!dir.exists(ptPaths$monocle3)) stop("Monocle3 object directory not found: ", ptPaths$monocle3GeneSwitches)
-  if (config$verbose) { message("Loading pseudotime trajectory") }
-  cds <- load_monocle_objects(directory_path = ptPaths$monocle3GeneSwitches)
-  return(cds)
-}
-
-loadSeuratByCellType <- function(ctPaths, config) {
-  if (!file.exists(ctPaths$seuratObject)) stop("Seurat RDS file not found: ", ctPaths$seuratObject)
-  if (config$verbose) { message("Loading Seurat object for cell type") }
-  seuratObj <- readRDS(ctPaths$seuratObject)
-  return(seuratObj)
-}
-
-loadSwitchGenes <- function(ptPaths, config) {
-  if (!file.exists(ptPaths$geneSwitches)) stop("Switch genes RDS file not found: ", ptPaths$geneSwitches)
-  if (config$verbose) { message("Loading switch genes RDS file") }
-  switchGenes <- readRDS(ptPaths$geneSwitches)
-  return(switchGenes)
-}
-
-# =============================================================================
-# File Saving
-# =============================================================================
-
-saveAttractors <- function(attractors, ptPaths, config) {
-  if (config$verbose) { message("Saving attractors RDS file to: ", ptPaths$attractors) }
-  saveRDS(attractors, file = ptPaths$attractors)
-}
-
+#' Save Boolean rules to file
+#' @param boolRules Boolean rules object to save
+#' @param ptPaths Path structure containing booleanRules path
+#' @param config Configuration object
+#' @export
 saveBooleanRules <- function(boolRules, ptPaths, config) {
-  if (config$verbose) { message("Saving Boolean rules RDS file to: ", ptPaths$booleanRules) }
-  saveRDS(boolRules, file = ptPaths$attractors)
+  saveObject(boolRules, ptPaths$booleanRules, config, "Boolean rules")
 }
 
-saveBoolNetReport <- function(boolNetReport, ptPaths, config) {
-  if (config$verbose) { message("Saving switch gene report to: ", ptPaths$boolNetTsv) }
-  write.table(boolNetReport, file = ptPaths$boolNetTsv, sep = "\t", quote = FALSE, row.names = FALSE)
+# GRN Edges
+#' Load GRN edges from file
+#' @param ptPaths Path structure containing grnEdges path
+#' @param config Configuration object
+#' @return GRN edges data frame
+#' @export
+loadGrnEdges <- function(ptPaths, config) {
+  loadObject(ptPaths$grnEdges, config, "GRN edges")
 }
 
-saveBoolNetwork <- function(boolNetwork, ptPaths, config) {
-  if (config$verbose) { message("Saving BoolNet network RDS file to: ", ptPaths$boolNet) }
-  saveRDS(boolNetwork, file = ptPaths$boolNet)
-}
-
+# Gene Mapping
+#' Save gene mapping to file
+#' @param geneMap Gene mapping object to save
+#' @param ptPaths Path structure containing geneMap path
+#' @param config Configuration object
+#' @export
 saveGeneMap <- function(geneMap, ptPaths, config) {
-  if (config$verbose) { message("Saving gene mapping to: ", ptPaths$geneMap) }
-  saveRDS(geneMap, file = ptPaths$geneMap)
+  saveObject(geneMap, ptPaths$geneMap, config, "gene mapping")
 }
 
+# Gene Switches
+#' Load switch genes from file
+#' @param ptPaths Path structure containing geneSwitches path
+#' @param config Configuration object
+#' @return Switch genes data frame
+#' @export
+loadSwitchGenes <- function(ptPaths, config) {
+  loadObject(ptPaths$geneSwitches, config, "switch genes")
+}
+
+#' Save switch genes to file
+#' @param switchGenes Switch genes object to save
+#' @param ptPaths Path structure containing geneSwitches path
+#' @param config Configuration object
+#' @export
 saveGeneSwitches <- function(switchGenes, ptPaths, config) {
-  if (config$verbose) { message("Saving switch genes to: ", ptPaths$geneSwitches) }
-  saveRDS(switchGenes, file = ptPaths$geneSwitches)
+  saveObject(switchGenes, ptPaths$geneSwitches, config, "switch genes")
 }
 
-saveGeneSwitchesReport <- function(switchOut, ptPaths, config) {
-  if (config$verbose) { message("Saving switch gene report to: ", ptPaths$geneSwitchesTsv) }
-  write.table(switchOut, file = ptPaths$geneSwitchesTsv, sep = "\t", quote = FALSE, row.names = FALSE)
+# Seurat Objects
+#' Load merged Seurat object from file
+#' @param paths Path structure containing seuratMerged path
+#' @param config Configuration object
+#' @return Merged Seurat object
+#' @export
+loadMergedSeurat <- function(paths, config) {
+  loadObject(paths$static$seuratMerged, config, "merged Seurat object")
 }
 
+#' Save merged Seurat object to file
+#' @param seuratMerged Merged Seurat object to save
+#' @param paths Path structure containing seuratMerged path
+#' @param config Configuration object
+#' @export
 saveMergedSeurat <- function(seuratMerged, paths, config) {
-  if (config$verbose) { message("Saving merged Seurat RDS file") }
-  saveRDS(seuratMerged, file = paths$static$seuratMerged)
+  saveObject(seuratMerged, paths$static$seuratMerged, config, "merged Seurat object")
 }
 
-saveMonocle3GeneSwitches <- function(cds, ptPaths, config) {
-  if (config$verbose) { message("Saving GeneSwitches Monocle3 object") }
-  save_monocle_objects(cds = cds, directory_path = ptPaths$monocle3GeneSwitches)
+#' Load cell type-specific Seurat object from file
+#' @param ctPaths Cell type path structure containing seuratObject path
+#' @param config Configuration object
+#' @return Cell type Seurat object
+#' @export
+loadSeuratByCellType <- function(ctPaths, config) {
+  loadObject(ctPaths$seuratObject, config, "cell type Seurat object")
 }
 
-savePseudotimeTrajectory <- function(cds, ptPaths, config) {
-  if (config$verbose) { message("Saving pseudotime trajectory") }
-  save_monocle_objects(cds = cds, directory_path = ptPaths$monocle3)
-}
-
+#' Save cell type-specific Seurat object to file
+#' @param seuratObject Seurat object to save
+#' @param ctPaths Cell type path structure containing seuratObject path
+#' @param config Configuration object
+#' @export
 saveSeuratByCellType <- function(seuratObject, ctPaths, config) {
-  if (config$verbose) { message("Saving Seurat file for cell type") }
-  saveRDS(seuratObject, file = ctPaths$seuratObject)
+  saveObject(seuratObject, ctPaths$seuratObject, config, "cell type Seurat object")
+}
+
+# Monocle3 Objects
+#' Load pseudotime trajectory from Monocle3 directory
+#' @param ptPaths Path structure containing monocle3 path
+#' @param config Configuration object
+#' @return Monocle3 CellDataSet object
+#' @export
+loadPseudotimeTrajectory <- function(ptPaths, config) {
+  loadMonocle3(ptPaths$monocle3, config, "pseudotime trajectory")
+}
+
+#' Save pseudotime trajectory to Monocle3 directory
+#' @param cds Monocle3 CellDataSet object to save
+#' @param ptPaths Path structure containing monocle3 path
+#' @param config Configuration object
+#' @export
+savePseudotimeTrajectory <- function(cds, ptPaths, config) {
+  saveMonocle3(cds, ptPaths$monocle3, config, "pseudotime trajectory")
+}
+
+#' Load GeneSwitches trajectory from Monocle3 directory
+#' @param ptPaths Path structure containing monocle3GeneSwitches path
+#' @param config Configuration object
+#' @return Monocle3 CellDataSet object
+#' @export
+loadMonocle3GeneSwitches <- function(ptPaths, config) {
+  loadMonocle3(ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory")
+}
+
+#' Save GeneSwitches trajectory to Monocle3 directory
+#' @param cds Monocle3 CellDataSet object to save
+#' @param ptPaths Path structure containing monocle3GeneSwitches path
+#' @param config Configuration object
+#' @export
+saveMonocle3GeneSwitches <- function(cds, ptPaths, config) {
+  saveMonocle3(cds, ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory")
+}
+
+# Reports and Analysis
+#' Save GeneSwitches report to file
+#' @param switchOut GeneSwitches output object to save
+#' @param ptPaths Path structure containing geneSwitchesTsv path
+#' @param config Configuration object
+#' @export
+saveGeneSwitchesReport <- function(switchOut, ptPaths, config) {
+  saveObject(switchOut, ptPaths$geneSwitchesTsv, config, "gene switches report")
+}
+
+#' Save BoolNet analysis report to file
+#' @param boolNetReport BoolNet report object to save
+#' @param ptPaths Path structure containing boolNetTsv path
+#' @param config Configuration object
+#' @export
+saveBoolNetReport <- function(boolNetReport, ptPaths, config) {
+  saveObject(boolNetReport, ptPaths$boolNetTsv, config, "BoolNet analysis report")
+}
+
+# BoolNet Objects
+#' Save BoolNet network to file
+#' @param boolNetwork BoolNet network object to save
+#' @param ptPaths Path structure containing boolNet path
+#' @param config Configuration object
+#' @export
+saveBoolNetwork <- function(boolNetwork, ptPaths, config) {
+  saveObject(boolNetwork, ptPaths$boolNet, config, "BoolNet network")
+}
+
+#' Save attractors to file
+#' @param attractors Attractors object to save
+#' @param ptPaths Path structure containing attractors path
+#' @param config Configuration object
+#' @export
+saveAttractors <- function(attractors, ptPaths, config) {
+  saveObject(attractors, ptPaths$attractors, config, "attractors")
 }

@@ -16,7 +16,7 @@ ensureProjectDirectories(paths)
 clearConsole()
 
 # --- Load Data ---
-seuratMerged <- loadMergedSeurat(paths, config)
+seuratMerged <- loadObject(paths$static$seuratMerged, config, "merged Seurat object")
 
 # --- Assign Cell Types Using SingleR ---
 if (config$verbose) { message("Assigning cell types using SingleR") }
@@ -35,16 +35,15 @@ for (ct in cellTypes) {
   readableCt <- toTitleCase(gsub("_", " ", ct))
   if (config$verbose) { message("Processing cell type: ", readableCt) }
   ctPaths <- getCellTypeFilePaths(paths$base, ct)
-
-  ctObj <- subset(seuratMerged, subset = cellType == ct)
-  ctObj <- DietSeurat(ctObj, scale.data = FALSE)
-  ctObj <- FindVariableFeatures(ctObj, nfeatures = config$singleRNumberOfFeatures)
-  varFt <- VariableFeatures(ctObj)
-  ctObj <- ScaleData(ctObj, features = varFt)
-  ctObj <- RunPCA(ctObj, features = varFt)
-  ctObj <- FindNeighbors(ctObj, dims = 1:10)
-  ctObj <- FindClusters(ctObj, resolution = 1)
-  ctObj <- RunUMAP(ctObj, dims = 1:10)
+  ctObj   <- subset(seuratMerged, subset = cellType == ct)
+  ctObj   <- DietSeurat(ctObj, scale.data = FALSE)
+  ctObj   <- FindVariableFeatures(ctObj, nfeatures = config$singleRNumberOfFeatures)
+  varFt   <- VariableFeatures(ctObj)
+  ctObj   <- ScaleData(ctObj, features = varFt)
+  ctObj   <- RunPCA(ctObj, features = varFt)
+  ctObj   <- FindNeighbors(ctObj, dims = 1:10)
+  ctObj   <- FindClusters(ctObj, resolution = 1)
+  ctObj   <- RunUMAP(ctObj, dims = 1:10)
 
   # --- Plotting ---
   pPCA <- DimPlot(ctObj,
@@ -85,7 +84,7 @@ for (ct in cellTypes) {
            dpi    = config$figDPI,
            units  = "in")
     
-    saveSeuratByCellType(ctObj, ctPaths, config)
+    saveObject(ctObj, ctPaths$seuratObject, config, "cell type Seurat object")
   }
 }
 
@@ -114,23 +113,15 @@ pUMAP <- DimPlot(seuratMerged,
 
 # --- Save Results ---
 if (config$saveResults) {
-  if (config$verbose) { message("Saving cell types RDS file") }
-  saveRDS(cellTypes, file = paths$static$cellTypes)
+  saveObject(cellTypes, paths$static$cellTypes, config, "cell types")
   
-  if (config$verbose) { message("Saving cell type frequency table as TSV file") }
   cellTypeFreqDf <- data.frame(
-    cell_type = names(cellTypeFreq),
-    number = as.integer(cellTypeFreq),
-    row.names = NULL,
+    cell_type        = names(cellTypeFreq),
+    number           = as.integer(cellTypeFreq),
+    row.names        = NULL,
     stringsAsFactors = FALSE
   )
-  write.table(
-    cellTypeFreqDf,
-    file = file.path(paths$static$cellTypeFreq),
-    sep = "\t",
-    quote = FALSE,
-    row.names = FALSE
-  )
+  saveObject(cellTypeFreqDf, paths$static$cellTypeFreq, config, "cell type frequency table")
   if (config$verbose) { message("Saving plots") }
   ggsave(paths$static$pcaAllCellsByType, pPCA,
          width  = config$figWidth,
