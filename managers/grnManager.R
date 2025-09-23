@@ -644,7 +644,7 @@ buildGrn <- function(scenicOptions, switchGenes, exprMat, matBin, config) {
     stop("No edges extracted from regulons - check SCENIC output integrity")
   }
   
-  # FIXED: Include TFs as potential targets to enable feedback loops
+  # Include TFs as potential targets to enable feedback loops
   switchGeneNames <- rownames(switchGenes)
   allTFs <- getDbTfs(scenicOptions)
   keepTargets <- union(switchGeneNames, allTFs)
@@ -662,7 +662,7 @@ buildGrn <- function(scenicOptions, switchGenes, exprMat, matBin, config) {
   scenicEdges <- extractScenicMetadata(scenicOptions, scenicEdges, config$verbose)
   
   # Add BINARY correlations with improved error handling
-  # CRITICAL FIX: Use binary matrix instead of continuous for Boolean network compatibility
+  # Use binary matrix instead of continuous for Boolean network compatibility
   validGenesExpr <- intersect(rownames(exprMat), unique(c(scenicEdges$TF, scenicEdges$Target)))
   validGenesBin <- intersect(rownames(matBin), unique(c(scenicEdges$TF, scenicEdges$Target)))
   validGenes <- intersect(validGenesExpr, validGenesBin)  # Must be in both matrices
