@@ -251,24 +251,10 @@ if (config$saveResults) {
 }
 
 # --- FINAL SUMMARY ---
-message("\n" , paste(rep("=", 60), collapse = ""))
 message("PRODUCTION BOOLEAN RULE INFERENCE COMPLETE")
-message(paste(rep("=", 60), collapse = ""))
 message("SUCCESS: Generated ", length(boolRules), " Boolean rules using SCENIC-integrated approach")
-message("")
-message("Key achievements:")
-message("✓ Used k=0 (same pseudotime) for maximum statistical power")
-message("✓ Integrated SCENIC metadata (regType, motif confidence, NES scores)")
-message("✓ Multi-method approach: templates + empirical + intelligent fallbacks")
-message("✓ Comprehensive quality control and BoolNet validation")
-message("✓ Production-grade error handling and resumable execution")
-message("")
 message("Rule quality summary:")
 message("  - Mean score: ", round(mean(sapply(boolRules, function(x) x$score %||% 0)), 3))
-message("  - High quality (≥0.75): ", sum(sapply(boolRules, function(x) x$score %||% 0) >= 0.75), 
-        "/", length(boolRules))
-message("  - Excellent quality (≥0.9): ", sum(sapply(boolRules, function(x) x$score %||% 0) >= 0.9), 
-        "/", length(boolRules))
-message("")
-message(paste(rep("=", 60), collapse = ""))
+message("  - High quality (≥0.75): ", sum(sapply(boolRules, function(x) x$score %||% 0) >= 0.75), "/", length(boolRules))
+message("  - Excellent quality (≥0.9): ", sum(sapply(boolRules, function(x) x$score %||% 0) >= 0.9), "/", length(boolRules))
 message("Done!")

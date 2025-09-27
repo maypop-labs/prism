@@ -142,6 +142,11 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     singleTargetsOE         = paste0(basePaths$rds, basePrefix, "_single_targets_OE.rds"),
     perturbationSummary     = paste0(basePaths$rds, basePrefix, "_perturbation_summary.rds"),
 
+    # Double perturbation analysis files
+    doubleTargetsKD         = paste0(basePaths$rds, basePrefix, "_double_targets_KD_KD.rds"),
+    doubleTargetsOE         = paste0(basePaths$rds, basePrefix, "_double_targets_OE_OE.rds"),
+    doubleTargetsMix        = paste0(basePaths$rds, basePrefix, "_double_targets_KD_OE.rds"),
+
     # Final analysis files
     finalTargetRankings     = paste0(basePaths$rds, basePrefix, "_final_target_rankings.rds"),
     targetSummaryTsv        = paste0(basePaths$tsv, basePrefix, "_target_summary.tsv"),

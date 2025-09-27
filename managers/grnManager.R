@@ -420,37 +420,30 @@ createAndSaveGrnPlot <- function(graph, plotPath, title = "Gene Regulatory Netwo
         if ("regType" %in% igraph::edge_attr_names(graph)) {
           ggraph::geom_edge_arc(aes(colour  = regType), 
                                 start_cap   = ggraph::circle(0, 'mm'),
-                                end_cap     = ggraph::circle(6, 'mm'),
+                                end_cap     = ggraph::circle(2, 'mm'),
                                 alpha       = 1.0,
-                                width       = 1.2,
+                                width       = 0.3,
                                 curvature   = 0.2,
-                                arrow       = grid::arrow(length = grid::unit(4, "mm"), type = "closed")
+                                arrow       = grid::arrow(length = grid::unit(2, "mm"), type = "closed")
                                )
         } else {
           ggraph::geom_edge_arc(alpha     = 1.0,
                                 start_cap = ggraph::circle(0, 'mm'),
-                                end_cap   = ggraph::circle(6, 'mm'),
-                                width     = 1.2,
+                                end_cap   = ggraph::circle(2, 'mm'),
+                                width     = 0.3,
                                 curvature = 0.2,
-                                arrow     = grid::arrow(length = grid::unit(4, "mm"))
+                                arrow     = grid::arrow(length = grid::unit(2, "mm"))
                                )
         }
       } else {
         ggraph::geom_edge_arc(alpha = 1.0)
       }
     } +
-    ggraph::geom_node_point(size  = 8, 
+    ggraph::geom_node_point(size  = 2, 
                            color  = "black",
-                           stroke = 1.5,
+                           stroke = 0.5,
                            shape  = 21,
                            fill   = "lightblue") +
-    ggraph::geom_node_text(aes(label    = name), 
-                          size          = 3.5, 
-                          repel         = TRUE,
-                          point.padding = 1.2,
-                          box.padding   = 0.8,
-                          force         = 5,
-                          max.overlaps  = Inf) +
     ggraph::scale_edge_colour_manual(values = c("Activation" = "darkgreen", "Inhibition" = "darkred"), guide = "none") +
     ggplot2::ggtitle(title) +
     ggplot2::expand_limits(x = c(-1.5, 1.5), y = c(-1.5, 1.5)) +
@@ -660,6 +653,40 @@ buildGrn <- function(scenicOptions, switchGenes, exprMat, matBin, config) {
   
   # Add SCENIC metadata (motif confidence, NES, etc.)
   scenicEdges <- extractScenicMetadata(scenicOptions, scenicEdges, config$verbose)
+  
+  # Add GENIE3 importance scores - load directly from current int/ folder
+  tryCatch({
+    genie3File <- "int/1.4_GENIE3_linkList.Rds"
+    
+    if (file.exists(genie3File)) {
+      genie3Links <- readRDS(genie3File)
+      
+      # Convert factors to characters if needed for merging
+      if (is.factor(genie3Links$TF)) genie3Links$TF <- as.character(genie3Links$TF)
+      if (is.factor(genie3Links$Target)) genie3Links$Target <- as.character(genie3Links$Target)
+      
+      # Merge GENIE3 weights with SCENIC edges
+      scenicEdges <- scenicEdges %>%
+        left_join(genie3Links %>% 
+                  select(TF, Target, genie3Importance = weight), 
+                  by = c("TF", "Target"))
+      
+      # Handle missing values with small default
+      scenicEdges$genie3Importance[is.na(scenicEdges$genie3Importance)] <- 0.001
+      
+      if (config$verbose) {
+        nWithGenie3 <- sum(!is.na(scenicEdges$genie3Importance) & scenicEdges$genie3Importance > 0.001)
+        message("  Edges with GENIE3 weights: ", nWithGenie3, "/", nrow(scenicEdges))
+      }
+    } else {
+      warning("GENIE3 file not found at: ", genie3File)
+      scenicEdges$genie3Importance <- 0.001  # Fallback for all edges
+    }
+    
+  }, error = function(e) {
+    warning("Could not load GENIE3 weights: ", e$message)
+    scenicEdges$genie3Importance <- 0.001  # Fallback for all edges
+  })
   
   # Add BINARY correlations with improved error handling
   # Use binary matrix instead of continuous for Boolean network compatibility

@@ -128,8 +128,8 @@ figWidth: 6.5
 # @param: networkLayout
 # @type: string
 # @description: Layout algorithm for network visualization plots.
-# Options include "lgl", "fr", "kk", "circle" depending on igraph availability.
-networkLayout: "lgl"
+# Options include "lgl", "fr", "kk", "circle," "graphopt" depending on igraph availability.
+networkLayout: "graphopt"
 
 # @param: plotAlpha
 # @type: float
@@ -426,9 +426,9 @@ boolExhaustiveLimit: 20
 # @type: integer
 # @description: Maximum number of random samples used for attractor search in large networks.
 # Higher values improve accuracy but increase computation time.
-# @suggested: [100, 250, 500, 1000, 1500, 2000, 5000, 10000]
-# @rationale: 100-250 for quick testing, 500 for rapid analysis, 1000 for standard accuracy, 1500-2000 for thorough sampling, 5000-10000 for exhaustive analysis of complex networks
-boolMaxSamples: 1000
+# @suggested: [100, 250, 500, 1000, 1500, 2000, 5000, 10000, 20000, 50000, 100000]
+# @rationale: 100-250 for quick testing, 500 for rapid analysis, 1000 for standard accuracy, 1500-2000 for thorough sampling, 5000-10000 and higher for exhaustive analysis of complex networks
+boolMaxSamples: 20000
 
 # @doc: Attractor_Analysis
 # @info: Parameters for attractor stability analysis and perturbation experiments
@@ -456,3 +456,19 @@ nSamplesState: 20
 # @suggested: [0.05, 0.10, 0.20]
 # @rationale: 0.05 for analyzing mildly aged networks, 0.10 for standard aged networks, 0.20 for strongly aged networks only
 attInitialThreshold: 0.10
+
+# @param: nTopTargetsDouble
+# @type: integer
+# @description: Number of top-performing single gene targets to test in double perturbation combinations.
+# Controls the scope of combination analysis by pre-screening the most promising targets.
+# @suggested: [3, 5, 8, 10]
+# @rationale: 3 for focused analysis with minimal computational cost, 5 for standard combination screening, 8 for comprehensive analysis, 10 for exhaustive combination testing with high computational cost
+nTopTargetsDouble: 5
+
+# @param: nStatesDouble
+# @type: integer
+# @description: Number of random states used for attractor search in double gene perturbation experiments.
+# Higher values improve accuracy of combination effect estimates but increase computation time.
+# @suggested: [50, 100, 200, 500]
+# @rationale: 50 for quick combination screening, 100 for standard accuracy, 200 for precise combination effects, 500 for high-confidence combination analysis
+nStatesDouble: 100

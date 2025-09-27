@@ -121,11 +121,7 @@ if (config$saveResults) {
 }
 
 # === FINAL SUMMARY ===
-message("\n", paste(rep("=", 60), collapse = ""))
 message("BOOLEAN NETWORK ANALYSIS COMPLETE")
-message(paste(rep("=", 60), collapse = ""))
 message("SUCCESS: Analyzed Boolean network with ", nNetworkGenes, " genes")
-message("Identified ", nAttractors, " attractors using ", 
-        ifelse(nNetworkGenes <= config$boolExhaustiveLimit, "exhaustive", "sampling"), " approach")
-message("\n", paste(rep("=", 60), collapse = ""))
+message("Identified ", nAttractors, " attractors using ", ifelse(nNetworkGenes <= config$boolExhaustiveLimit, "exhaustive", "sampling"), " approach")
 message("Done!")
