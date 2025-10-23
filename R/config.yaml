@@ -12,7 +12,7 @@
 #   - donorIDs: Sample identifiers matching your data
 # #############################################################################
 
-# @doc: File_Paths
+# @doc: File Paths
 # @info: Core directory paths that define where data is read from and written to
 
 # @param: rootPath
@@ -60,7 +60,7 @@ donorIDs:
   - "73yo"
   - "76yo"
   
-# @doc: System_Resources
+# @doc: System Resources
 # @info: System resource allocation and computation environment settings
 
 # @param: cores
@@ -145,7 +145,7 @@ plotAlpha: 0.75
 # @rationale: 1.0 for datasets with many points, 1.5 for standard visualization, 2.0 for sparse datasets or presentation figures
 pointSize: 1.5
 
-# @doc: Seurat_QualityControl
+# @doc: Seurat Quality Control
 # @info: Seurat preprocessing and quality control parameters for single-cell data
 
 # @param: seuratMaxPercentMtDNA
@@ -179,7 +179,7 @@ seuratNumberOfFeatures: 2000
 # @default: 10000
 seuratScaleFactor: 100000
 
-# @doc: SingleR_CellTyping
+# @doc: SingleR Cell Typing
 # @info: SingleR cell type annotation parameters
 
 # @param: singleRMinimumNumberOfCells
@@ -198,7 +198,7 @@ singleRMinimumNumberOfCells: 1000
 # @rationale: 500 for very focused cell type analysis, 1000 for targeted studies, 1500-2000 for standard resolution, 2500-3000 for detailed analysis, 4000 for maximum subtype resolution
 singleRNumberOfFeatures: 2000
 
-# @doc: Pseudotime_Analysis
+# @doc: Pseudotime Analysis
 # @info: Monocle3 pseudotime trajectory inference parameters
 
 # @param: pseudotimeMinAgeCorrelation
@@ -209,7 +209,7 @@ singleRNumberOfFeatures: 2000
 # @rationale: 0.4 for exploratory analysis, 0.5 for standard aging studies, 0.6 for stringent validation of age-related trajectories
 pseudotimeMinAgeCorrelation: 0.5
 
-# @doc: GeneSwitches_Analysis
+# @doc: GeneSwitches Analysis
 # @info: GeneSwitches logistic modeling parameters for switch-like gene behavior detection
 
 # @param: geneSwitchesCutOff
@@ -244,14 +244,14 @@ geneSwitchesMinDetect: 0.05
 # @rationale: 0.01 for very stringent multiple testing correction, 0.05 for standard statistical significance, 0.10 for exploratory analysis with relaxed significance
 geneSwitchesFdrThreshold: 0.05
 
-# @doc: Gene_Regulatory_Network
+# @doc: Gene Regulatory Network
 # @info: SCENIC/GENIE3 gene regulatory network inference parameters
 
 # @param: grnFromScratch
 # @type: boolean
 # @description: Whether to rebuild the entire GRN from scratch or attempt to recover previous SCENIC results.
 # Set to true to force complete regeneration, false to resume from checkpoints.
-grnFromScratch: false
+grnFromScratch: true
 
 # @param: grnPositiveThreshold
 # @type: float
@@ -371,7 +371,7 @@ grnPreserveIntermediates: true
 # Saves disk space while preserving ability to resume analysis.
 grnCleanupAfterPreservation: true
 
-# @doc: Boolean_Network
+# @doc: Boolean Network
 # @info: Boolean network construction and BoolNet analysis parameters
 
 # @param: boolCheckpointInterval
@@ -430,7 +430,7 @@ boolExhaustiveLimit: 20
 # @rationale: 100-250 for quick testing, 500 for rapid analysis, 1000 for standard accuracy, 1500-2000 for thorough sampling, 5000-10000 and higher for exhaustive analysis of complex networks
 boolMaxSamples: 20000
 
-# @doc: Attractor_Analysis
+# @doc: Attractor Analysis
 # @info: Parameters for attractor stability analysis and perturbation experiments
 
 # @param: nPerturb
@@ -449,13 +449,13 @@ nPerturb: 30
 # @rationale: 10 for quick sampling, 20 for standard basin characterization, 30 for detailed entropy analysis of large basins
 nSamplesState: 20
 
-# @param: attInitialThreshold
+# @param: nInitialThreshold
 # @type: float
 # @description: Minimum initial aging score required for a network to undergo perturbation analysis.
 # Networks below this threshold are considered already youthful and not analyzed further.
 # @suggested: [0.05, 0.10, 0.20]
 # @rationale: 0.05 for analyzing mildly aged networks, 0.10 for standard aged networks, 0.20 for strongly aged networks only
-attInitialThreshold: 0.10
+nInitialThreshold: 0.10
 
 # @param: nTopTargetsDouble
 # @type: integer

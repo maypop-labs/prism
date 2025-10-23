@@ -153,7 +153,7 @@ message("Part 2 completed: Network aging score = ", round(overallAgingScore, 4))
 message("Part 3: Starting systematic perturbation analysis...")
 
 # Check if network is suitable for perturbation
-minThreshold <- config$attInitialThreshold %||% 0.3
+minThreshold <- config$nInitialThreshold %||% 0.3
 if (initialScore <= minThreshold) {
   stop("Initial aging score (", round(initialScore, 4), 
        ") below threshold (", minThreshold, "). Network not suitable for perturbation.")
