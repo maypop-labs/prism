@@ -1,0 +1,8 @@
+mojaveazure/seurat-disk
+satijalab/seurat-data
+cole-trapnell-lab/monocle3
+SGDDNB/GeneSwitches
+aertslab/GENIE3
+bokeh/rbokeh
+aertslab/SCopeLoomR
+aertslab/SCENIC
