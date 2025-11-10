@@ -26,7 +26,7 @@ loadRequiredLibraries <- function(suppressMessages = TRUE) {
     
     # Single-cell analysis
     "Seurat", "SeuratData", "SeuratDisk", "monocle3", "SingleCellExperiment",
-    "celldex", "SingleR", "Matrix",
+    "celldex", "SingleR", "Matrix", "scDblFinder",
     
     # Network analysis
     "BoolNet", "igraph", "SCENIC", "GENIE3", "GeneSwitches",

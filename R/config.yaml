@@ -145,6 +145,42 @@ plotAlpha: 0.75
 # @rationale: 1.0 for datasets with many points, 1.5 for standard visualization, 2.0 for sparse datasets or presentation figures
 pointSize: 1.5
 
+# @doc: Doublet Detection
+# @info: Parameters for detecting and removing doublets (multiple cells captured in single droplets)
+
+# @param: detectDoublets
+# @type: boolean
+# @description: Whether to detect and remove doublets before downstream analysis.
+# Doublets are technical artifacts where two or more cells are captured in one droplet, creating false intermediate cell states.
+# Can confound trajectory inference and introduce spurious regulatory relationships.
+# @suggested: [true, false]
+# @rationale: true for publication-quality analysis and when processing multiple datasets, false for quick exploratory analysis or when doublet rate is known to be very low
+detectDoublets: true
+
+# @param: doubletRemovalMethod
+# @type: string
+# @description: Algorithm for doublet detection.
+# scDblFinder is fast and well-validated, DoubletFinder is slower but provides alternative validation.
+# @suggested: ["scDblFinder", "DoubletFinder"]
+# @rationale: scDblFinder for standard analysis (faster, recommended), DoubletFinder for alternative validation or comparison studies
+doubletRemovalMethod: "scDblFinder"
+
+# @param: doubletExpectedRate
+# @type: float
+# @description: Expected doublet rate based on cell loading concentration for 10X Genomics protocols.
+# scDblFinder can estimate this automatically, but manual setting improves accuracy when loading concentration is known.
+# @suggested: [0.05, 0.08, 0.10]
+# @rationale: 0.05 for conservative doublet detection with low-concentration loading, 0.08 for standard 10X Chromium protocols, 0.10 for high-concentration loading or crowded droplets
+doubletExpectedRate: 0.08
+
+# @param: doubletScoreThreshold
+# @type: float
+# @description: Minimum doublet score threshold for classification as doublet (used with scoring-based methods).
+# Higher values are more stringent, removing fewer cells but with higher confidence.
+# @suggested: [0.5, 0.7, 0.9]
+# @rationale: 0.5 for sensitive doublet detection, 0.7 for balanced precision and recall, 0.9 for high-confidence doublets only (may miss some true doublets)
+doubletScoreThreshold: 0.7
+
 # @doc: Seurat Quality Control
 # @info: Seurat preprocessing and quality control parameters for single-cell data
 
@@ -178,6 +214,33 @@ seuratNumberOfFeatures: 2000
 # Standard value that normalizes to counts per 100,000 total counts per cell.
 # @default: 10000
 seuratScaleFactor: 100000
+
+# @doc: Donor Normalization
+# @info: Parameters for equalizing donor representation within cell types to prevent bias
+
+# @param: normFloorCells
+# @type: integer
+# @description: Minimum target number of cells per donor per cell type for normalization.
+# Donors with fewer cells are retained but not upsampled.
+# @suggested: [100, 200, 300]
+# @rationale: 100 for preserving rare donors in small cell types, 200 for standard statistical power, 300 for robust downstream modeling
+normFloorCells: 200
+
+# @param: normCapCells
+# @type: integer
+# @description: Maximum target number of cells per donor per cell type for normalization.
+# Donors with more cells are downsampled to this value.
+# @suggested: [500, 1000, 2000]
+# @rationale: 500 for aggressive downsampling when donors are very imbalanced, 1000 for standard normalization, 2000 for preserving maximum information when disk space and memory allow
+normCapCells: 1000
+
+# @param: normQuantileCut
+# @type: float
+# @description: Quantile used to calculate soft target for donor normalization (e.g., 0.2 = 20th percentile).
+# Lower quantiles result in more aggressive downsampling.
+# @suggested: [0.1, 0.2, 0.3]
+# @rationale: 0.1 for conservative downsampling that emphasizes well-represented donors, 0.2 for balanced normalization that avoids both extremes, 0.3 for permissive normalization that preserves more cells
+normQuantileCut: 0.2
 
 # @doc: SingleR Cell Typing
 # @info: SingleR cell type annotation parameters

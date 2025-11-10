@@ -22,6 +22,9 @@
 .Rproj
 .Rproj.user/
 
+# Claude documents
+claude/
+
 # produced vignettes
 vignettes/*.html
 vignettes/*.pdf
