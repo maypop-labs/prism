@@ -220,27 +220,12 @@ seuratScaleFactor: 100000
 
 # @param: normFloorCells
 # @type: integer
-# @description: Minimum target number of cells per donor per cell type for normalization.
-# Donors with fewer cells are retained but not upsampled.
+# @description: Minimum acceptable number of cells per donor per cell type for normalization.
+# Cell types where the donor with fewest cells falls below this threshold are excluded entirely.
+# All other donors are downsampled to match the minimum donor count, ensuring perfect balance.
 # @suggested: [100, 200, 300]
-# @rationale: 100 for preserving rare donors in small cell types, 200 for standard statistical power, 300 for robust downstream modeling
+# @rationale: 100 for including cell types with limited representation, 200 for standard statistical power with perfect balance, 300 for robust downstream modeling with stringent quality control
 normFloorCells: 200
-
-# @param: normCapCells
-# @type: integer
-# @description: Maximum target number of cells per donor per cell type for normalization.
-# Donors with more cells are downsampled to this value.
-# @suggested: [500, 1000, 2000]
-# @rationale: 500 for aggressive downsampling when donors are very imbalanced, 1000 for standard normalization, 2000 for preserving maximum information when disk space and memory allow
-normCapCells: 1000
-
-# @param: normQuantileCut
-# @type: float
-# @description: Quantile used to calculate soft target for donor normalization (e.g., 0.2 = 20th percentile).
-# Lower quantiles result in more aggressive downsampling.
-# @suggested: [0.1, 0.2, 0.3]
-# @rationale: 0.1 for conservative downsampling that emphasizes well-represented donors, 0.2 for balanced normalization that avoids both extremes, 0.3 for permissive normalization that preserves more cells
-normQuantileCut: 0.2
 
 # @doc: SingleR Cell Typing
 # @info: SingleR cell type annotation parameters
@@ -268,9 +253,9 @@ singleRNumberOfFeatures: 2000
 # @type: float
 # @description: Minimum Pearson correlation required between pseudotime and chronological age for trajectory validation.
 # Trajectories below this correlation are rejected as not representing aging.
-# @suggested: [0.4, 0.5, 0.6]
-# @rationale: 0.4 for exploratory analysis, 0.5 for standard aging studies, 0.6 for stringent validation of age-related trajectories
-pseudotimeMinAgeCorrelation: 0.5
+# @suggested: [0.3, 0.4, 0.5, 0.6]
+# @rationale: 0.3 as an absolute minumum, 0.4 for exploratory analysis, 0.5 for standard aging studies, 0.6 for stringent validation of age-related trajectories
+pseudotimeMinAgeCorrelation: 0.3
 
 # @doc: GeneSwitches Analysis
 # @info: GeneSwitches logistic modeling parameters for switch-like gene behavior detection

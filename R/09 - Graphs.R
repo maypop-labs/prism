@@ -8,13 +8,13 @@ source("managers/attractorManager.R")
 source("managers/pathManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-config     <- initializeScript()
-pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
-paths      <- pathInfo$paths
-cellType   <- pathInfo$cellType
+config <- initializeScript()
+pathInfo <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths <- pathInfo$paths
+cellType <- pathInfo$cellType
 trajectory <- pathInfo$trajectory
-ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
-ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+ctPaths <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 
 # Ensure plots directory exists
 if (!dir.exists(paths$base$plots)) {

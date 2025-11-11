@@ -2,7 +2,7 @@
 # 05 - GRN.R
 # Build gene regulatory network with SCENIC/GENIE3, integrated with GeneSwitches
 #
-# Note: Possible > 14-hour runtime for new pseudotime trajectories.
+# Note: Possible > 14-hour runtime for new pseudotime trajectories. Zzzzz ...
 # =============================================================================
 
 # --- Initialization ---
@@ -11,25 +11,25 @@ source("managers/pathManager.R")
 source("managers/pseudotimeManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-config     <- initializeScript()
-pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
-paths      <- pathInfo$paths
-cellType   <- pathInfo$cellType
+config <- initializeScript()
+pathInfo <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths <- pathInfo$paths
+cellType <- pathInfo$cellType
 trajectory <- pathInfo$trajectory
-ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
-ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+ctPaths <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 ensureProjectDirectories(paths)
 clearConsole()
 
 # --- SCENIC Recovery Logic ---
 if (!config$grnFromScratch) {
   # Check if int and output exist locally
-  localIntExists    <- dir.exists("int")
+  localIntExists <- dir.exists("int")
   localOutputExists <- dir.exists("output")
   
   if (!localIntExists || !localOutputExists) {
     # Check if they exist in trajectory-specific scenic folder
-    scenicIntPath    <- file.path(ptPaths$scenic, "int")
+    scenicIntPath <- file.path(ptPaths$scenic, "int")
     scenicOutputPath <- file.path(ptPaths$scenic, "output")
     
     if (dir.exists(scenicIntPath) || dir.exists(scenicOutputPath)) {
@@ -46,7 +46,7 @@ if (!config$grnFromScratch) {
 }
 
 # --- Load Data ---
-cds         <- loadMonocle3(ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory with binary assay")
+cds <- loadMonocle3(ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory with binary assay")
 switchGenes <- loadObject(ptPaths$geneSwitches, config, "switch genes")
 
 # =============================================================================

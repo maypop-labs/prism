@@ -10,9 +10,9 @@
 
 #' Normalize donor representation within each cell type
 #'
-#' Downsamples cells within each (donor × cell type) stratum so that no donor
-#' dominates any given cell type. Uses a soft quantile-based target rather than
-#' strict minimum to preserve statistical power while reducing donor bias.
+#' Downsamples cells within each (donor × cell type) stratum so that all donors
+#' contribute equally to each cell type. Uses the minimum donor count as the
+#' target, rejecting cell types where the minimum falls below a threshold.
 #'
 #' The function operates on cell-type-annotated Seurat objects and equalizes
 #' donor representation separately within each cell type. This prevents
@@ -22,9 +22,7 @@
 #' @param seuratObj Seurat object with donor and cell type metadata
 #' @param donorColumn Name of metadata column containing donor IDs (default: "donorID")
 #' @param cellTypeColumn Name of metadata column containing cell types (default: "cellType")
-#' @param floorCells Minimum target cells per donor per cell type (default: 200)
-#' @param capCells Maximum target cells per donor per cell type (default: 1000)
-#' @param quantileCut Quantile for soft target calculation (default: 0.2)
+#' @param floorCells Minimum acceptable cells per donor per cell type (default: 200)
 #' @param numReplicates Number of independent random samplings (default: 1)
 #' @param seedValue Random seed for reproducibility (default: 42)
 #'
@@ -33,18 +31,20 @@
 #'
 #' @details
 #' Target Calculation:
-#' For each cell type, the target is the 20th percentile of non-zero donor
-#' counts, bounded by floorCells and capCells. This avoids both:
-#' - Over-downsampling (using strict minimum)
-#' - Extreme donors dominating (using mean or median)
+#' For each cell type, the target is the minimum donor count. Cell types where
+#' this minimum is below floorCells are excluded from the normalized object.
+#' This ensures perfect donor balance: all retained cell types have exactly
+#' the same number of cells from each donor.
 #'
 #' Sampling Strategy:
-#' - Donors with more cells than target: randomly sample target cells
-#' - Donors with fewer cells than target: keep all cells (no upsampling)
+#' - Find minimum donor count for each cell type
+#' - If minimum >= floorCells: downsample all donors to match minimum
+#' - If minimum < floorCells: exclude that cell type entirely
+#' - Result: Perfect donor balance or complete exclusion
 #'
 #' Metadata Storage:
 #' Normalization parameters are stored in the @misc slot of returned Seurat
-#' objects for downstream validation and leave-one-donor-out (LODO) analysis.
+#' objects for downstream validation.
 #'
 #' @export
 normalizeCellTypeByDonor <- function(
@@ -52,8 +52,6 @@ normalizeCellTypeByDonor <- function(
   donorColumn = "donorID",
   cellTypeColumn = "cellType",
   floorCells = 200,
-  capCells = 1000,
-  quantileCut = 0.2,
   numReplicates = 1,
   seedValue = 42
 ) {
@@ -71,14 +69,6 @@ normalizeCellTypeByDonor <- function(
     stop("floorCells must be >= 1")
   }
   
-  if (capCells < floorCells) {
-    stop("capCells must be >= floorCells")
-  }
-  
-  if (quantileCut < 0 || quantileCut > 1) {
-    stop("quantileCut must be between 0 and 1")
-  }
-  
   if (numReplicates < 1) {
     stop("numReplicates must be >= 1")
   }
@@ -90,21 +80,41 @@ normalizeCellTypeByDonor <- function(
   counts <- table(seuratObj@meta.data[[cellTypeColumn]], 
                   seuratObj@meta.data[[donorColumn]])
   
-  # Calculate soft target for each cell type
+  # Calculate target as minimum donor count for each cell type
   nTarget <- apply(counts, 1, function(x) {
     nonzero <- x[x > 0]
     if (length(nonzero) == 0) return(0)
     
-    # Use quantileCut percentile, bounded by floor and cap
-    target <- quantile(nonzero, quantileCut)
-    target <- max(min(target, capCells), floorCells)
-    return(round(target))
+    # Use actual minimum donor count
+    return(min(nonzero))
   })
+  
+  # Filter out cell types below floor threshold
+  validCellTypes <- names(nTarget)[nTarget >= floorCells]
+  excludedCellTypes <- names(nTarget)[nTarget < floorCells & nTarget > 0]
+  
+  if (length(excludedCellTypes) > 0) {
+    message("\n=== Cell Types Excluded (Below Floor Threshold) ===")
+    for (ct in excludedCellTypes) {
+      donorCounts <- counts[ct, counts[ct, ] > 0]
+      message("  ", ct, ": minimum ", nTarget[[ct]], " cells/donor (< ", 
+              floorCells, " threshold)")
+    }
+  }
+  
+  if (length(validCellTypes) == 0) {
+    stop("No cell types have sufficient cells for normalization. ",
+         "Minimum required: ", floorCells, " cells per donor. ",
+         "Consider lowering floorCells in config.yaml.")
+  }
+  
+  # Keep only valid cell types
+  nTarget <- nTarget[validCellTypes]
   
   # --- Log Normalization Strategy ---
   message("\n=== Donor Normalization Within Cell Types ===")
-  message("Strategy: ", quantileCut * 100, "th percentile of donor counts")
-  message("Bounds: [", floorCells, ", ", capCells, "] cells per donor per cell type")
+  message("Strategy: Use minimum donor count as target for perfect balance")
+  message("Minimum threshold: ", floorCells, " cells per donor per cell type")
   message("Replicates: ", numReplicates)
   message("\nTargets per cell type:")
   
@@ -124,7 +134,7 @@ normalizeCellTypeByDonor <- function(
       message("\nGenerating replicate ", r, "/", numReplicates)
     }
     
-    # Sample cells for each cell type
+    # Sample cells for each valid cell type only
     selectedCells <- unlist(lapply(names(nTarget), function(ct) {
       
       # Get unique donors in this cell type
@@ -160,11 +170,10 @@ normalizeCellTypeByDonor <- function(
       nTarget = nTarget,
       seed = seedValue + r,
       floorCells = floorCells,
-      capCells = capCells,
-      quantileCut = quantileCut,
       totalCells = length(selectedCells),
       originalCells = ncol(seuratObj),
       retentionRate = length(selectedCells) / ncol(seuratObj),
+      excludedCellTypes = if(length(excludedCellTypes) > 0) excludedCellTypes else NULL,
       donorColumn = donorColumn,
       cellTypeColumn = cellTypeColumn
     )
@@ -199,8 +208,8 @@ normalizeCellTypeByDonor <- function(
 
 #' Validate donor balance after normalization
 #'
-#' Checks that each donor's representation per cell type is within expected
-#' range after normalization. Reports any cell types where balance is poor.
+#' Checks that each donor's representation per cell type is exactly equal
+#' to the target (perfect balance). Reports any discrepancies.
 #'
 #' @param seuratObj Normalized Seurat object
 #' @param donorColumn Name of donor metadata column
@@ -217,28 +226,28 @@ validateDonorBalance <- function(seuratObj, donorColumn, cellTypeColumn, nTarget
   countsAfter <- table(seuratObj@meta.data[[cellTypeColumn]], 
                        seuratObj@meta.data[[donorColumn]])
   
-  imbalanced <- character()
+  allPerfect <- TRUE
   
   for (ct in names(nTarget)) {
     donorCounts <- countsAfter[ct, countsAfter[ct, ] > 0]
     target <- nTarget[[ct]]
     
-    # Check if any donor deviates >20% from target
-    deviations <- abs(donorCounts - target) / target
-    
-    if (any(deviations > 0.2)) {
-      imbalanced <- c(imbalanced, ct)
-      message("  WARNING: ", ct, " has donors deviating >20% from target")
-      message("    Target: ", target, ", Range: ", 
-              paste(range(donorCounts), collapse = "-"))
+    # Check if all donors have exactly the target count
+    if (length(unique(donorCounts)) == 1 && unique(donorCounts) == target) {
+      message("  \u2713 ", ct, ": Perfect balance (", target, " cells per donor)")
+    } else {
+      allPerfect <- FALSE
+      message("  \u2717 ", ct, ": Imperfect balance")
+      message("    Target: ", target, ", Actual: ", 
+              paste(donorCounts, collapse = ", "))
     }
   }
   
-  if (length(imbalanced) == 0) {
-    message("  All cell types within ±20% of target")
+  if (allPerfect) {
+    message("\n\u2713 All cell types have perfect donor balance")
   } else {
-    message("\nCell types with imbalance: ", paste(imbalanced, collapse = ", "))
-    message("This may indicate insufficient cells for balanced sampling")
+    warning("Some cell types do not have perfect balance. ",
+            "This should not happen with the minimum-based approach.")
   }
   
   invisible(TRUE)

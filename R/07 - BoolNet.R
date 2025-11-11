@@ -7,19 +7,19 @@
 source("managers/pathManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-config     <- initializeScript()
-pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
-paths      <- pathInfo$paths
-cellType   <- pathInfo$cellType
+config <- initializeScript()
+pathInfo <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths <- pathInfo$paths
+cellType <- pathInfo$cellType
 trajectory <- pathInfo$trajectory
-ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
-ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+ctPaths <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 ensureProjectDirectories(paths)
 clearConsole()
 
 # === STAGE 1: Load Validated Data ===
 message("=== STAGE 1: Loading validated Boolean rules and trajectory data ===")
-cds       <- loadMonocle3(ptPaths$monocle3, config, "pseudotime trajectory")
+cds <- loadMonocle3(ptPaths$monocle3, config, "pseudotime trajectory")
 boolRules <- loadObject(ptPaths$booleanRules, config, "Boolean rules")
 
 message("Data loaded successfully:")
@@ -52,8 +52,8 @@ if (nNetworkGenes <= config$boolExhaustiveLimit) {
   message("Using exhaustive search (≤", config$boolExhaustiveLimit, " genes)")
   attractors <- getAttractors(
     boolNetwork,
-    method      = "exhaustive",
-    type        = "synchronous",
+    method = "exhaustive",
+    type = "synchronous",
     returnTable = TRUE
   )
 } else { 
@@ -62,9 +62,9 @@ if (nNetworkGenes <= config$boolExhaustiveLimit) {
   message("Using random sampling: ", adaptiveSamples, " samples")
   attractors <- getAttractors(
     boolNetwork,
-    method      = "random",
+    method = "random",
     startStates = adaptiveSamples,
-    type        = "synchronous",
+    type = "synchronous",
     returnTable = TRUE
   )
 }
@@ -108,13 +108,13 @@ if (config$saveResults) {
   
   # Generate analysis summary
   boolNetReport <- data.frame(
-    TotalGenes       = nNetworkGenes,
-    TotalAttractors  = nAttractors,
-    PointAttractors  = sum(attractorSizes == 1),
-    CycleAttractors  = sum(attractorSizes > 1),
+    TotalGenes = nNetworkGenes,
+    TotalAttractors = nAttractors,
+    PointAttractors = sum(attractorSizes == 1),
+    CycleAttractors = sum(attractorSizes > 1),
     MaxAttractorSize = ifelse(nAttractors > 0, max(attractorSizes), 0),
     AvgAttractorSize = ifelse(nAttractors > 0, round(mean(attractorSizes), 2), 0),
-    AnalysisMethod   = ifelse(nNetworkGenes <= config$boolExhaustiveLimit, "Exhaustive", "Sampling"),
+    AnalysisMethod = ifelse(nNetworkGenes <= config$boolExhaustiveLimit, "Exhaustive", "Sampling"),
     stringsAsFactors = FALSE
   )
   saveObject(boolNetReport, ptPaths$boolNetTsv, config, "BoolNet analysis report")

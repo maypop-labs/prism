@@ -43,8 +43,6 @@ seuratMerged <- normalizeCellTypeByDonor(
   donorColumn = "donorID",
   cellTypeColumn = "cellType",
   floorCells = config$normFloorCells,
-  capCells = config$normCapCells,
-  quantileCut = config$normQuantileCut,
   numReplicates = 1,
   seedValue = config$randomSeed
 )
@@ -52,6 +50,45 @@ seuratMerged <- normalizeCellTypeByDonor(
 if (config$verbose) { 
   message("\n=== Post-Normalization Donor Statistics ===") 
   print(reportDonorStats(seuratMerged, donorColumn = "donorID", cellTypeColumn = "cellType"))
+}
+
+# --- Update cellTypes to only include those that survived normalization ---
+cellTypes <- unique(seuratMerged$cellType)
+
+# --- Filter For Perfectly Balanced Cell Types Only ---
+if (config$verbose) { message("\n=== Filtering For Perfect Donor Balance ===") }
+
+perfectlyBalanced <- c()
+for (ct in cellTypes) {
+  ctCells <- seuratMerged[, seuratMerged$cellType == ct]
+  donorCounts <- table(ctCells$donorID)
+  
+  if (length(unique(donorCounts)) == 1) {
+    # All donors have same count - perfect balance
+    if (config$verbose) {
+      message("  \u2713 ", ct, ": ", unique(donorCounts), " cells per donor (RETAINED)")
+    }
+    perfectlyBalanced <- c(perfectlyBalanced, ct)
+  } else {
+    # Uneven donor representation
+    if (config$verbose) {
+      message("  \u2717 ", ct, ": ", paste(donorCounts, collapse = ", "), " (EXCLUDED - uneven donors)")
+    }
+  }
+}
+
+# Update cellTypes to only include perfectly balanced ones
+cellTypes <- perfectlyBalanced
+
+if (length(cellTypes) == 0) {
+  stop("No cell types achieved perfect donor balance after normalization. ",
+       "Consider lowering normFloorCells or normCapCells in config.yaml.")
+}
+
+if (config$verbose) {
+  message("\n=== Cell Type Filtering Summary ===")
+  message("Retained: ", length(cellTypes), " cell type(s) with perfect balance")
+  message("Processing: ", paste(cellTypes, collapse = ", "))
 }
 
 # --- Process Each Cell Type ---

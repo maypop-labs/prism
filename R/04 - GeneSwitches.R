@@ -4,19 +4,21 @@
 # Perform logistic modeling of gene expression state transitions across
 # pseudotime using the GeneSwitches package on raw data.
 # Output includes filtered switch-like genes.
+#
+# This script has a long runtime. Grab a cup of coffee. C[_]
 # =============================================================================
 
 # --- Initialization ---
 source("managers/pathManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-config     <- initializeScript()
-pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
-paths      <- pathInfo$paths
-cellType   <- pathInfo$cellType
+config <- initializeScript()
+pathInfo <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths <- pathInfo$paths
+cellType <- pathInfo$cellType
 trajectory <- pathInfo$trajectory
-ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
-ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+ctPaths <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 ensureProjectDirectories(paths)
 clearConsole()
 
@@ -26,11 +28,11 @@ cds <- loadMonocle3(ptPaths$monocle3, config, "pseudotime trajectory")
 # --- Prepare Data for GeneSwitches ---
 if (config$verbose) { message("Preparing data for GeneSwitches") }
 colData(cds)$Pseudotime <- pseudotime(cds)
-assay(cds, "expdata")   <- log1p(assay(cds, "counts"))
-expdata                 <- assay(cds, "expdata")
-pt                      <- colData(cds)$Pseudotime
-detect_frac             <- rowMeans(expdata > 0, na.rm = TRUE)
-keep                    <- (detect_frac >= config$geneSwitchesMinDetect)
+assay(cds, "expdata") <- log1p(assay(cds, "counts"))
+expdata <- assay(cds, "expdata")
+pt <- colData(cds)$Pseudotime
+detect_frac <- rowMeans(expdata > 0, na.rm = TRUE)
+keep <- (detect_frac >= config$geneSwitchesMinDetect)
 
 if (config$verbose) message("Prefiltering by detect ≥ ", config$geneSwitchesMinDetect)
 if (config$verbose) message("Genes kept pre-binarization: ", sum(keep), " / ", nrow(expdata))
@@ -76,11 +78,11 @@ switchGenes <- filter_switchgenes(cds, allgenes = TRUE)
 # --- Summarize Switch Genes for Export ---
 switchDf  <- as.data.frame(switchGenes, stringsAsFactors = FALSE)
 switchOut <- data.frame(
-  geneId           = switchDf$geneID,
-  direction        = switchDf$direction,
-  fdr              = switchDf$FDR,
-  pseudotime       = switchDf$switch_at_time,
-  pseudoR2s        = switchDf$pseudoR2s,
+  geneId = switchDf$geneID,
+  direction = switchDf$direction,
+  fdr = switchDf$FDR,
+  pseudotime = switchDf$switch_at_time,
+  pseudoR2s = switchDf$pseudoR2s,
   stringsAsFactors = FALSE
 )
 

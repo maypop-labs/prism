@@ -29,6 +29,7 @@ clearConsole <- function() {
 #' Display interactive cell type selection menu
 #'
 #' Presents a numbered menu of available cell types for user selection.
+#' If only one cell type is available, automatically selects it.
 #' Only functions in interactive R sessions. Provides clear error messages
 #' for invalid selections or non-interactive contexts.
 #'
@@ -44,6 +45,15 @@ showCellTypeMenu <- function(cellTypes) {
   # Input validation
   if (is.null(cellTypes) || length(cellTypes) == 0) {
     stop("No valid cell types provided for selection")
+  }
+  
+  # Auto-select if only one option
+  if (length(cellTypes) == 1) {
+    clearConsole()
+    message("Only one cell type available: ", cellTypes[1])
+    message("Auto-selecting: ", cellTypes[1])
+    message("")
+    return(cellTypes[1])
   }
   
   # Check for interactive session
@@ -81,7 +91,8 @@ showCellTypeMenu <- function(cellTypes) {
 #' Display interactive trajectory selection menu
 #'
 #' Presents a numbered menu of available pseudotime trajectories for user
-#' selection. Only functions in interactive R sessions.
+#' selection. If only one trajectory is available, automatically selects it.
+#' Only functions in interactive R sessions.
 #'
 #' @param trajectories Character vector of available trajectory identifiers
 #' @return Selected trajectory as character string
@@ -95,6 +106,15 @@ showTrajectoryMenu <- function(trajectories) {
   # Input validation
   if (is.null(trajectories) || length(trajectories) == 0) {
     stop("No valid pseudotime trajectories provided for selection")
+  }
+  
+  # Auto-select if only one option
+  if (length(trajectories) == 1) {
+    clearConsole()
+    message("Only one trajectory available: ", trajectories[1])
+    message("Auto-selecting: ", trajectories[1])
+    message("")
+    return(trajectories[1])
   }
   
   # Check for interactive session

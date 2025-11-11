@@ -8,13 +8,13 @@ source("managers/attractorManager.R")
 source("managers/pathManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-config     <- initializeScript()
-pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
-paths      <- pathInfo$paths
-cellType   <- pathInfo$cellType
+config <- initializeScript()
+pathInfo <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths <- pathInfo$paths
+cellType <- pathInfo$cellType
 trajectory <- pathInfo$trajectory
-ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
-ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+ctPaths <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 
 message("Starting comprehensive attractor analysis...")
 message("Loading trajectory data and Boolean network...")
@@ -38,12 +38,12 @@ pseudotimeValues <- colData(cds)$Pseudotime
 
 # Order cells by pseudotime for young/old reference computation
 cellOrder <- order(pseudotimeValues, na.last = NA)
-nCells    <- length(cellOrder)
-q20       <- floor(0.2 * nCells)
+nCells <- length(cellOrder)
+q20 <- floor(0.2 * nCells)
 
 # Compute reference vectors from trajectory extremes
 youngVec <- rowMeans(matBin[, cellOrder[1:q20]], na.rm = TRUE)
-oldVec   <- rowMeans(matBin[, cellOrder[(nCells - q20 + 1):nCells]], na.rm = TRUE)
+oldVec <- rowMeans(matBin[, cellOrder[(nCells - q20 + 1):nCells]], na.rm = TRUE)
 
 # Map attractor genes to expression data
 sanitizedNames <- attractors$stateInfo$genes
@@ -52,22 +52,22 @@ netGenes <- intersect(originalNames[!is.na(originalNames)], rownames(matBin))
 
 # Subset reference vectors to valid genes
 youngVec <- youngVec[netGenes]
-oldVec   <- oldVec[netGenes]
+oldVec <- oldVec[netGenes]
 
 # Compute attractor age scores
-attractorList   <- attractors$attractors
-nAttractors     <- length(attractorList)
+attractorList <- attractors$attractors
+nAttractors <- length(attractorList)
 attractorScores <- numeric(nAttractors)
 
 for (i in seq_len(nAttractors)) {
   attractor <- attractorList[[i]]
   encodedState <- attractor$involvedStates[[1]]
-  decoded      <- decodeBigIntegerState(encodedState, length(sanitizedNames))
+  decoded <- decodeBigIntegerState(encodedState, length(sanitizedNames))
   names(decoded) <- originalNames
   decoded <- decoded[netGenes]
   
   # Compute age score via projection onto young-old axis
-  numerator   <- sum((decoded - youngVec) * (oldVec - youngVec), na.rm = TRUE)
+  numerator <- sum((decoded - youngVec) * (oldVec - youngVec), na.rm = TRUE)
   denominator <- sum((oldVec - youngVec)^2, na.rm = TRUE)
   
   attractorScores[i] <- if (denominator > 1e-10) numerator / denominator else 0
@@ -80,10 +80,10 @@ basinSizes <- sapply(attractorList, function(x) {
 
 # Create results data frame
 attractorDf <- data.frame(
-  Attractor       = seq_len(nAttractors),
-  AgeScore        = attractorScores,
-  BasinSize       = basinSizes / sum(basinSizes),
-  AttractorSize   = sapply(attractorList, function(x) length(x$involvedStates)),
+  Attractor = seq_len(nAttractors),
+  AgeScore = attractorScores,
+  BasinSize = basinSizes / sum(basinSizes),
+  AttractorSize = sapply(attractorList, function(x) length(x$involvedStates)),
   stringsAsFactors = FALSE
 )
 
@@ -104,20 +104,20 @@ message("Part 2: Computing entropy and stability metrics...")
 
 # Configure entropy analysis parameters
 nSamplesState <- config$nSamplesState %||% 15
-nPerturb      <- config$nPerturb %||% 25
+nPerturb <- config$nPerturb %||% 25
 
 # Compute attractor entropy and stability
 entropyDf <- computeAttractorEntropy(
-  boolnet       = boolnet,
-  attractors    = attractors,
+  boolnet = boolnet,
+  attractors = attractors,
   nSamplesState = nSamplesState,
-  nPerturb      = nPerturb
+  nPerturb = nPerturb
 )
 
 # Merge entropy data with age scores
 attractorDfScores <- merge(
-  x    = entropyDf,
-  y    = attractorDf,
+  x = entropyDf,
+  y = attractorDf,
   by.x = "AttractorIndex",
   by.y = "Attractor",
   all.x = TRUE
@@ -127,7 +127,7 @@ attractorDfScores <- merge(
 attractorDfScores$AttractorScore <- with(attractorDfScores, {
   stability <- ifelse(is.na(Stability), 0.5, Stability)
   basinSize <- ifelse(is.na(BasinSize), 0, BasinSize)
-  ageScore  <- ifelse(is.na(AgeScore), 0.5, AgeScore)
+  ageScore <- ifelse(is.na(AgeScore), 0.5, AgeScore)
   
   stability * basinSize * ageScore
 })
@@ -718,3 +718,35 @@ if (totalDoubleCombinations > 0) {
 }
 
 message(paste(rep("=", 60), collapse = ""))
+
+# =============================================================================
+# Save Configuration Snapshot
+# =============================================================================
+
+if (config$saveResults) {
+  if (config$verbose) {
+    message("\n=== Preserving Configuration ===")
+  }
+  
+  # Define paths
+  configSourcePath <- file.path(getwd(), "config.yaml")
+  resultsPath <- file.path(config$rootPath, "results")
+  configDestPath <- file.path(resultsPath, "config.yaml")
+  
+  # Ensure results directory exists
+  if (!dir.exists(resultsPath)) {
+    dir.create(resultsPath, recursive = TRUE)
+  }
+  
+  # Copy the configuration file
+  if (file.exists(configSourcePath)) {
+    file.copy(configSourcePath, configDestPath, overwrite = TRUE)
+    if (config$verbose) {
+      message("Configuration snapshot saved to: ", configDestPath)
+    }
+  } else {
+    warning("Could not find config.yaml at: ", configSourcePath)
+  }
+}
+
+message("Done!")

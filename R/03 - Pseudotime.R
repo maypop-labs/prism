@@ -89,6 +89,31 @@ branch_stats <- branch_stats |>
   dplyr::filter(!is.na(corWithAge) & corWithAge >= 0) |>
   dplyr::arrange(dplyr::desc(corWithAge))
 
+# --- Check for Valid Trajectories ---
+if (retained == 0) {
+  warning("No valid trajectories found for cell type: ", cellType)
+  message("Correlation threshold: r >= ", config$pseudotimeMinAgeCorrelation, ", p < 0.05")
+  message("\nActual correlations achieved:")
+  print(branch_stats[, c("leaf", "corWithAge", "pValue", "nCells", "nDonors")])
+  
+  if (config$saveResults) {
+    # Save diagnostic information in a safe format
+    if (nrow(branch_stats) > 0) {
+      saveObject(branch_stats, ctPaths$trajectoryCorrelations, config, "branch statistics report")
+      message("Saved branch statistics for diagnostic purposes")
+    }
+    # Save explicit empty vector using saveRDS directly to avoid write.table issues
+    saveRDS(character(0), file = ctPaths$retainedTrajectories)
+    message("Saved empty trajectory list to: ", basename(ctPaths$retainedTrajectories))
+  }
+  
+  stop("No valid trajectories found. Analysis cannot continue for this cell type.\n",
+       "Suggestions:\n",
+       "  1. Lower pseudotimeMinAgeCorrelation in config.yaml (currently ", config$pseudotimeMinAgeCorrelation, ")\n",
+       "  2. Choose a different cell type with better age-trajectory correlation\n",
+       "  3. Review branch statistics above to see achieved correlations")
+}
+
 # --- Save Results ---
 if (config$saveResults) {
   saveObject(branch_stats, ctPaths$trajectoryCorrelations, config, "branch statistics report")

@@ -1,6 +1,8 @@
 # =============================================================================
 # 06 - Boolean Regulation
 # Purpose: Generate production-quality Boolean rules using `i + k` + SCENIC data
+#
+# This script has a long runtime. Grab a cup of coffee. C[_]
 # =============================================================================
 
 source("managers/booleanManager.R")
@@ -8,18 +10,18 @@ source("managers/booleanReportManager.R")
 source("managers/pathManager.R")
 source("managers/setupManager.R")
 source("managers/uiManager.R")
-config     <- initializeScript()
-pathInfo   <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
-paths      <- pathInfo$paths
-cellType   <- pathInfo$cellType
+config <- initializeScript()
+pathInfo <- initializeInteractivePaths(needsCellType = TRUE, needsTrajectory = TRUE)
+paths <- pathInfo$paths
+cellType <- pathInfo$cellType
 trajectory <- pathInfo$trajectory
-ctPaths    <- getCellTypeFilePaths(paths$base, cellType)
-ptPaths    <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
+ctPaths <- getCellTypeFilePaths(paths$base, cellType)
+ptPaths <- getTrajectoryFilePaths(paths$base, cellType, trajectory)
 ensureProjectDirectories(paths)
 clearConsole()
 
 # --- STAGE 1: Robust Data Loading and Validation ---
-cds   <- loadMonocle3(ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory")
+cds <- loadMonocle3(ptPaths$monocle3GeneSwitches, config, "GeneSwitches trajectory")
 edges <- loadObject(ptPaths$grnEdges, config, "GRN edges")
 
 # Validate SCENIC metadata columns
@@ -47,8 +49,8 @@ message("  - SCENIC columns: ", paste(colnames(edges), collapse = ", "))
 message("=== STAGE 2: Sanitizing gene names for BoolNet compatibility ===")
 
 # Generate comprehensive gene name mapping
-allGenes   <- unique(c(rownames(cds), edges$TF, edges$Target))
-geneMap    <- generateSanitizedGeneMapping(allGenes)
+allGenes <- unique(c(rownames(cds), edges$TF, edges$Target))
+geneMap <- generateSanitizedGeneMapping(allGenes)
 geneLookup <- setNames(geneMap$SanitizedName, geneMap$OriginalName)
 
 message("Gene name mapping:")
@@ -56,17 +58,17 @@ message("  - Total unique genes: ", length(allGenes))
 message("  - Genes requiring sanitization: ", sum(geneMap$OriginalName != geneMap$SanitizedName))
 
 # Apply sanitization to expression matrix
-matBin            <- assay(cds, "binary")
-genesInEdges      <- unique(c(edges$TF, edges$Target))
-matBin            <- matBin[rownames(matBin) %in% genesInEdges, ]
-originalRowNames  <- rownames(matBin)
+matBin <- assay(cds, "binary")
+genesInEdges <- unique(c(edges$TF, edges$Target))
+matBin <- matBin[rownames(matBin) %in% genesInEdges, ]
+originalRowNames <- rownames(matBin)
 sanitizedRowNames <- sapply(originalRowNames, function(g) geneLookup[[g]] %||% g)
-rownames(matBin)  <- sanitizedRowNames
-edges$TF          <- sapply(edges$TF, function(g) geneLookup[[g]] %||% g)
-edges$Target      <- sapply(edges$Target, function(g) geneLookup[[g]] %||% g)
-validTFs          <- edges$TF %in% rownames(matBin)
-validTargets      <- edges$Target %in% rownames(matBin)
-validEdges        <- validTFs & validTargets
+rownames(matBin) <- sanitizedRowNames
+edges$TF <- sapply(edges$TF, function(g) geneLookup[[g]] %||% g)
+edges$Target <- sapply(edges$Target, function(g) geneLookup[[g]] %||% g)
+validTFs <- edges$TF %in% rownames(matBin)
+validTargets <- edges$Target %in% rownames(matBin)
+validEdges <- validTFs & validTargets
 
 if (sum(!validEdges) > 0) {
   message("Removing ", sum(!validEdges), " edges with genes missing from expression matrix")
@@ -146,8 +148,8 @@ message("  - Rules synthesized: ", length(boolRules), " target genes")
 message("=== STAGE 5: Adding self-activation rules for genes without rules ===")
 
 # Find all genes mentioned as regulators but lacking rules
-ruleGenes         <- names(boolRules)
-genesInRules      <- unique(unlist(lapply(boolRules, function(x) x$regulators)))
+ruleGenes <- names(boolRules)
+genesInRules <- unique(unlist(lapply(boolRules, function(x) x$regulators)))
 allMentionedGenes <- unique(c(ruleGenes, genesInRules))
 genesNeedingRules <- setdiff(intersect(allMentionedGenes, rownames(matBin)), ruleGenes)
 
