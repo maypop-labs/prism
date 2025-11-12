@@ -91,6 +91,89 @@ attractorPlots <- list(
 message("Attractor landscape visualization created")
 
 # =============================================================================
+# GENESWITCHES TIMELINE VISUALIZATION
+# =============================================================================
+
+message("Creating GeneSwitches timeline visualization...")
+
+# Load GeneSwitches results
+geneSwitchesData <- loadObject(ptPaths$geneSwitchesTsv, config, "GeneSwitches results")
+
+# Filter genes by quality metrics
+# - FDR < 0.05
+# - Pseudo R² > 0.03
+filteredSwitches <- geneSwitchesData[
+  geneSwitchesData$fdr < 0.05 & 
+  geneSwitchesData$pseudoR2s > 0.03,
+]
+
+if (nrow(filteredSwitches) == 0) {
+  warning("No genes passed GeneSwitches filtering criteria. Skipping timeline plot.")
+} else {
+  # Select top 30 genes by Pseudo R² (quality of fit)
+  filteredSwitches <- filteredSwitches[order(-filteredSwitches$pseudoR2s), ]
+  top30Switches <- head(filteredSwitches, 30)
+  
+  # Separate upregulated and downregulated genes for positioning
+  top30Switches$PlotPosition <- ifelse(
+    top30Switches$direction == "up",
+    top30Switches$pseudoR2s,    # Above timeline (positive y)
+    -top30Switches$pseudoR2s    # Below timeline (negative y)
+  )
+  
+  # Create the timeline plot
+  geneSwitchesTimelinePlot <- ggplot(top30Switches, 
+                                      aes(x = pseudotime, y = PlotPosition, label = geneId)) +
+    # Horizontal timeline at y = 0
+    geom_hline(yintercept = 0, color = "black", linewidth = 1) +
+    
+    # Gene points
+    geom_point(aes(color = direction), size = 3, alpha = 0.8) +
+    
+    # Gene labels
+    ggrepel::geom_text_repel(aes(color = direction), size = 3, 
+                             max.overlaps = Inf, 
+                             segment.size = 0.2,
+                             box.padding = 0.5,
+                             point.padding = 0.3,
+                             show.legend = FALSE) +
+    
+    # Color scheme: up = green, down = red
+    scale_color_manual(
+      name = "Switch Direction",
+      values = c("up" = "#1a9850", "down" = "#d73027"),
+      labels = c("up" = "Upregulated", "down" = "Downregulated")
+    ) +
+    
+    # Axis labels and title
+    labs(
+      title = paste0("Gene Expression Switches Along Pseudotime"),
+      subtitle = paste0(cellType, " - ", trajectory, " (Top 30 by Pseudo R²)"),
+      x = "Pseudotime",
+      y = "Quality of Fitting (Pseudo R²)",
+      caption = "Genes above timeline are upregulated; genes below are downregulated"
+    ) +
+    
+    # Theme
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, hjust = 0.5, face = "bold"),
+      plot.subtitle = element_text(size = 11, hjust = 0.5),
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 10),
+      legend.title = element_text(size = 10, face = "bold"),
+      legend.position = "right",
+      panel.grid.minor = element_blank(),
+      plot.caption = element_text(size = 9, color = "gray50", hjust = 0.5)
+    )
+  
+  # Add to plot list
+  attractorPlots$geneSwitches <- geneSwitchesTimelinePlot
+  
+  message("GeneSwitches timeline visualization created (", nrow(top30Switches), " genes)")
+}
+
+# =============================================================================
 # PERTURBATION RESULTS PLOTS
 # =============================================================================
 
