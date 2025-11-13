@@ -136,6 +136,10 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     referenceVectors        = paste0(basePaths$rds, basePrefix, "_reference_vectors.rds"),
     attractorScoresCombined = paste0(basePaths$rds, basePrefix, "_attractor_scores_combined.rds"),
     networkAgingSummary     = paste0(basePaths$rds, basePrefix, "_network_aging_summary.rds"),
+    
+    # Human-readable TSV summaries
+    networkAgingSummaryTsv  = paste0(basePaths$tsv, basePrefix, "_network_aging_summary.tsv"),
+    attractorDetailsTsv     = paste0(basePaths$tsv, basePrefix, "_attractor_details.tsv"),
 
     # Perturbation analysis files
     singleTargetsKD         = paste0(basePaths$rds, basePrefix, "_single_targets_KD.rds"),
@@ -150,6 +154,30 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     # Final analysis files
     finalTargetRankings     = paste0(basePaths$rds, basePrefix, "_final_target_rankings.rds"),
     targetSummaryTsv        = paste0(basePaths$tsv, basePrefix, "_target_summary.tsv"),
+    
+    # Switch-gene-focused perturbation files
+    switchSingleTargetsKD   = paste0(basePaths$rds, basePrefix, "_switch_single_targets_KD.rds"),
+    switchSingleTargetsOE   = paste0(basePaths$rds, basePrefix, "_switch_single_targets_OE.rds"),
+    switchDoubleTargetsKD   = paste0(basePaths$rds, basePrefix, "_switch_double_targets_KD_KD.rds"),
+    switchDoubleTargetsOE   = paste0(basePaths$rds, basePrefix, "_switch_double_targets_OE_OE.rds"),
+    switchDoubleTargetsMix  = paste0(basePaths$rds, basePrefix, "_switch_double_targets_KD_OE.rds"),
+    switchTargetSummaryTsv  = paste0(basePaths$tsv, basePrefix, "_switch_target_summary.tsv"),
+    
+    # Pro-aging (anti-hit) perturbation files
+    proAgingSingleKD        = paste0(basePaths$rds, basePrefix, "_proaging_single_KD.rds"),
+    proAgingSingleOE        = paste0(basePaths$rds, basePrefix, "_proaging_single_OE.rds"),
+    proAgingDoubleKD        = paste0(basePaths$rds, basePrefix, "_proaging_double_KD_KD.rds"),
+    proAgingDoubleOE        = paste0(basePaths$rds, basePrefix, "_proaging_double_OE_OE.rds"),
+    proAgingDoubleMix       = paste0(basePaths$rds, basePrefix, "_proaging_double_KD_OE.rds"),
+    proAgingSummaryTsv      = paste0(basePaths$tsv, basePrefix, "_proaging_summary.tsv"),
+    
+    # Pro-aging switch-gene-focused files
+    proAgingSwitchSingleKD  = paste0(basePaths$rds, basePrefix, "_proaging_switch_single_KD.rds"),
+    proAgingSwitchSingleOE  = paste0(basePaths$rds, basePrefix, "_proaging_switch_single_OE.rds"),
+    proAgingSwitchDoubleKD  = paste0(basePaths$rds, basePrefix, "_proaging_switch_double_KD_KD.rds"),
+    proAgingSwitchDoubleOE  = paste0(basePaths$rds, basePrefix, "_proaging_switch_double_OE_OE.rds"),
+    proAgingSwitchDoubleMix = paste0(basePaths$rds, basePrefix, "_proaging_switch_double_KD_OE.rds"),
+    proAgingSwitchSummaryTsv = paste0(basePaths$tsv, basePrefix, "_proaging_switch_summary.tsv"),
 
     # Boolean analysis reports (additional TSV outputs)
     booleanRulesAnalysis    = paste0(basePaths$tsv, basePrefix, "_boolean_rules_analysis.tsv"),

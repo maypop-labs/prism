@@ -497,14 +497,6 @@ nPerturb: 30
 # @rationale: 10 for quick sampling, 20 for standard basin characterization, 30 for detailed entropy analysis of large basins
 nSamplesState: 20
 
-# @param: nInitialThreshold
-# @type: float
-# @description: Minimum initial aging score required for a network to undergo perturbation analysis.
-# Networks below this threshold are considered already youthful and not analyzed further.
-# @suggested: [0.05, 0.10, 0.20]
-# @rationale: 0.05 for analyzing mildly aged networks, 0.10 for standard aged networks, 0.20 for strongly aged networks only
-nInitialThreshold: 0.10
-
 # @param: nTopTargetsDouble
 # @type: integer
 # @description: Number of top-performing single gene targets to test in double perturbation combinations.

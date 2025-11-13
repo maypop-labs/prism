@@ -152,16 +152,67 @@ message("Part 2 completed: Network aging score = ", round(overallAgingScore, 4))
 
 message("Part 3: Starting systematic perturbation analysis...")
 
-# Check if network is suitable for perturbation
-minThreshold <- config$nInitialThreshold %||% 0.3
-if (initialScore <= minThreshold) {
-  stop("Initial aging score (", round(initialScore, 4), 
-       ") below threshold (", minThreshold, "). Network not suitable for perturbation.")
-}
-
 message("Initial aging score: ", round(initialScore, 4), " - proceeding with perturbation")
 
-# Robust perturbation scoring function
+message("Part 2 completed: Network aging score = ", round(overallAgingScore, 4))
+
+# =============================================================================
+# Export Human-Readable TSV Summaries
+# =============================================================================
+
+if (config$saveResults) {
+  message("\n=== Exporting human-readable TSV summaries ===")
+  
+  # 1. Network-level aging summary
+  networkSummaryTsv <- data.frame(
+    CellType = cellType,
+    Trajectory = trajectory,
+    OverallAgingScore = round(overallAgingScore, 6),
+    TotalAttractors = nrow(attractorDfScores),
+    MeanStability = round(mean(attractorDfScores$Stability, na.rm = TRUE), 6),
+    MeanAgeScore = round(mean(attractorDfScores$AgeScore, na.rm = TRUE), 6),
+    WeightedAgeScore = round(sum(attractorDfScores$BasinSize * attractorDfScores$AgeScore, na.rm = TRUE), 6),
+    TotalGenes = length(boolnet$genes),
+    stringsAsFactors = FALSE
+  )
+  
+  write.table(networkSummaryTsv, ptPaths$networkAgingSummaryTsv, 
+              sep = "\t", row.names = FALSE, quote = FALSE)
+  
+  message("Network aging summary saved:")
+  message("  - File: ", basename(ptPaths$networkAgingSummaryTsv))
+  message("  - Overall Aging Score: ", round(overallAgingScore, 6))
+  message("  - Total Attractors: ", nrow(attractorDfScores))
+  
+  # 2. Per-attractor details
+  attractorDetailsTsv <- data.frame(
+    CellType = cellType,
+    Trajectory = trajectory,
+    AttractorID = attractorDfScores$AttractorIndex,
+    AgeScore = round(attractorDfScores$AgeScore, 6),
+    BasinSize = round(attractorDfScores$BasinSize, 6),
+    AttractorSize = attractorDfScores$AttractorSize,
+    Entropy = round(attractorDfScores$Entropy, 6),
+    Stability = round(attractorDfScores$Stability, 6),
+    CompositeAgingContribution = round(attractorDfScores$AttractorScore, 6),
+    stringsAsFactors = FALSE
+  )
+  
+  # Sort by composite aging contribution (highest first)
+  attractorDetailsTsv <- attractorDetailsTsv[order(-attractorDetailsTsv$CompositeAgingContribution), ]
+  
+  write.table(attractorDetailsTsv, ptPaths$attractorDetailsTsv, 
+              sep = "\t", row.names = FALSE, quote = FALSE)
+  
+  message("Attractor details saved:")
+  message("  - File: ", basename(ptPaths$attractorDetailsTsv))
+  message("  - Attractors documented: ", nrow(attractorDetailsTsv))
+  message("  - Highest aging contribution: ", 
+          round(max(attractorDetailsTsv$CompositeAgingContribution, na.rm = TRUE), 6),
+          " (Attractor ", attractorDetailsTsv$AttractorID[1], ")")
+  
+  message("=== TSV export complete ===\n")
+}
 scorePerturbationRobust <- function(network, geneNames, values, youngVec, oldVec) {
   perturbedNet <- fixGenes(network, fixIndices = geneNames, values = values)
   
@@ -508,6 +559,251 @@ if (!is.na(bestDoubleDelta)) {
 }
 
 # =============================================================================
+# PART 6: Switch-Gene-Focused Perturbation Analysis
+# =============================================================================
+
+message("\n", paste(rep("=", 60), collapse = ""))
+message("PART 6: Switch-Gene-Focused Perturbation Analysis")
+message(paste(rep("=", 60), collapse = ""))
+message("Testing perturbations restricted to empirically validated switch genes...")
+
+# Load switch genes from GeneSwitches analysis
+# Load switch genes from GeneSwitches analysis
+switchGenesData <- loadObject(ptPaths$geneSwitchesTsv, config, "switch genes report")
+# Extract gene names
+if (is.data.frame(switchGenesData)) {
+  switchGeneNames <- switchGenesData$geneId
+} else if (is.list(switchGenesData) && "gene" %in% names(switchGenesData)) {
+  switchGeneNames <- switchGenesData$gene
+} else {
+  stop("Unexpected switch genes data structure")
+}
+
+# Map switch genes to Boolean network genes
+switchGenesOriginal <- unique(switchGeneNames)
+switchGenesInNet <- intersect(switchGenesOriginal, boolnet$genes)
+
+nSwitchGenes <- length(switchGenesInNet)
+message("Switch genes in network: ", nSwitchGenes, " out of ", length(switchGenesOriginal), " total")
+message("Testing genes: ", paste(head(switchGenesInNet, 10), collapse = ", "), 
+        if(nSwitchGenes > 10) "..." else "")
+
+# Initialize switch-gene results
+switchSingleKD <- data.frame(
+  Gene = switchGenesInNet,
+  AgingScore = NA_real_,
+  Delta = NA_real_,
+  Success = FALSE,
+  SwitchDirection = NA_character_,
+  Pseudotime = NA_real_,
+  PseudoR2 = NA_real_,
+  stringsAsFactors = FALSE
+)
+
+switchSingleOE <- data.frame(
+  Gene = switchGenesInNet,
+  AgingScore = NA_real_,
+  Delta = NA_real_,
+  Success = FALSE,
+  SwitchDirection = NA_character_,
+  Pseudotime = NA_real_,
+  PseudoR2 = NA_real_,
+  stringsAsFactors = FALSE
+)
+
+# Add switch gene metadata
+for (i in seq_along(switchGenesInNet)) {
+  gene <- switchGenesInNet[i]
+  
+  if (is.data.frame(switchGenesData)) {
+    geneRow <- switchGenesData[switchGenesData$geneId == gene, ]
+    if (nrow(geneRow) > 0) {
+      switchSingleKD$SwitchDirection[i] <- geneRow$direction[1]
+      switchSingleKD$Pseudotime[i] <- geneRow$pseudotime[1]
+      switchSingleKD$PseudoR2[i] <- geneRow$pseudoR2s[1]
+      
+      switchSingleOE$SwitchDirection[i] <- geneRow$direction[1]
+      switchSingleOE$Pseudotime[i] <- geneRow$pseudotime[1]
+      switchSingleOE$PseudoR2[i] <- geneRow$pseudoR2s[1]
+    }
+  }
+}
+
+message("\nTesting ", nSwitchGenes, " switch genes for knockdown and overexpression...")
+
+# Test each switch gene
+for (i in seq_along(switchGenesInNet)) {
+  gene <- switchGenesInNet[i]
+  
+  # Test knockdown
+  kdResult <- scorePerturbationRobust(boolnet, gene, 0, youngVec, oldVec)
+  switchSingleKD$AgingScore[i] <- kdResult$score
+  switchSingleKD$Success[i] <- kdResult$success
+  switchSingleKD$Delta[i] <- kdResult$score - initialScore
+  
+  # Test overexpression
+  oeResult <- scorePerturbationRobust(boolnet, gene, 1, youngVec, oldVec)
+  switchSingleOE$AgingScore[i] <- oeResult$score
+  switchSingleOE$Success[i] <- oeResult$success
+  switchSingleOE$Delta[i] <- oeResult$score - initialScore
+}
+
+# Results summary
+switchValidKD <- sum(switchSingleKD$Success)
+switchValidOE <- sum(switchSingleOE$Success)
+switchKDImprovements <- sum(switchSingleKD$Delta < -0.01, na.rm = TRUE)
+switchOEImprovements <- sum(switchSingleOE$Delta < -0.01, na.rm = TRUE)
+
+message("\nSwitch-gene perturbation results:")
+message("  - Valid KD results: ", switchValidKD, "/", nSwitchGenes)
+message("  - Valid OE results: ", switchValidOE, "/", nSwitchGenes)
+message("  - KD improvements: ", switchKDImprovements)
+message("  - OE improvements: ", switchOEImprovements)
+
+# Sort by improvement
+switchSingleKD <- switchSingleKD[order(switchSingleKD$AgingScore), ]
+switchSingleOE <- switchSingleOE[order(switchSingleOE$AgingScore), ]
+
+# Double perturbations for switch genes
+message("\nTesting pairwise switch gene combinations...")
+
+# Get top switch genes for double perturbation
+nTopSwitch <- min(nSwitchGenes, config$nTopTargetsDouble %||% 5)
+topSwitchKD <- head(switchSingleKD[switchSingleKD$Success & !is.na(switchSingleKD$Delta), ]$Gene, nTopSwitch)
+topSwitchOE <- head(switchSingleOE[switchSingleOE$Success & !is.na(switchSingleOE$Delta), ]$Gene, nTopSwitch)
+
+message("  - Top switch KD genes: ", paste(topSwitchKD, collapse = ", "))
+message("  - Top switch OE genes: ", paste(topSwitchOE, collapse = ", "))
+
+# Initialize double switch perturbation results
+switchDoubleKD <- data.frame(
+  Gene1 = character(),
+  Gene2 = character(),
+  AgingScore = numeric(),
+  Delta = numeric(),
+  stringsAsFactors = FALSE
+)
+
+switchDoubleOE <- data.frame(
+  Gene1 = character(),
+  Gene2 = character(),
+  AgingScore = numeric(),
+  Delta = numeric(),
+  stringsAsFactors = FALSE
+)
+
+switchDoubleMix <- data.frame(
+  KD_Gene = character(),
+  OE_Gene = character(),
+  AgingScore = numeric(),
+  Delta = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Test double knockdowns
+if (length(topSwitchKD) >= 2) {
+  message("Testing switch gene double knockdown combinations...")
+  
+  for (i in 1:(length(topSwitchKD) - 1)) {
+    for (j in (i + 1):length(topSwitchKD)) {
+      gene1 <- topSwitchKD[i]
+      gene2 <- topSwitchKD[j]
+      
+      score <- scoreDoublePerturbation(boolnet, gene1, gene2, c(0, 0), youngVec, oldVec)
+      
+      switchDoubleKD <- rbind(switchDoubleKD, data.frame(
+        Gene1 = gene1,
+        Gene2 = gene2,
+        AgingScore = score,
+        Delta = score - initialScore,
+        stringsAsFactors = FALSE
+      ))
+    }
+  }
+}
+
+# Test double overexpressions
+if (length(topSwitchOE) >= 2) {
+  message("Testing switch gene double overexpression combinations...")
+  
+  for (i in 1:(length(topSwitchOE) - 1)) {
+    for (j in (i + 1):length(topSwitchOE)) {
+      gene1 <- topSwitchOE[i]
+      gene2 <- topSwitchOE[j]
+      
+      score <- scoreDoublePerturbation(boolnet, gene1, gene2, c(1, 1), youngVec, oldVec)
+      
+      switchDoubleOE <- rbind(switchDoubleOE, data.frame(
+        Gene1 = gene1,
+        Gene2 = gene2,
+        AgingScore = score,
+        Delta = score - initialScore,
+        stringsAsFactors = FALSE
+      ))
+    }
+  }
+}
+
+# Test mixed perturbations
+if (length(topSwitchKD) >= 1 && length(topSwitchOE) >= 1) {
+  message("Testing switch gene mixed KD/OE combinations...")
+  
+  for (kdGene in topSwitchKD) {
+    for (oeGene in topSwitchOE) {
+      score <- scoreDoublePerturbation(boolnet, kdGene, oeGene, c(0, 1), youngVec, oldVec)
+      
+      switchDoubleMix <- rbind(switchDoubleMix, data.frame(
+        KD_Gene = kdGene,
+        OE_Gene = oeGene,
+        AgingScore = score,
+        Delta = score - initialScore,
+        stringsAsFactors = FALSE
+      ))
+    }
+  }
+}
+
+# Sort results
+switchDoubleKD <- switchDoubleKD[order(switchDoubleKD$AgingScore), ]
+switchDoubleOE <- switchDoubleOE[order(switchDoubleOE$AgingScore), ]
+switchDoubleMix <- switchDoubleMix[order(switchDoubleMix$AgingScore), ]
+
+# Count improvements
+switchDoubleKDImprovements <- sum(switchDoubleKD$Delta < -0.01, na.rm = TRUE)
+switchDoubleOEImprovements <- sum(switchDoubleOE$Delta < -0.01, na.rm = TRUE)
+switchDoubleMixImprovements <- sum(switchDoubleMix$Delta < -0.01, na.rm = TRUE)
+
+message("\nSwitch-gene double perturbation results:")
+message("  - Double KD combinations: ", nrow(switchDoubleKD), " (", switchDoubleKDImprovements, " improvements)")
+message("  - Double OE combinations: ", nrow(switchDoubleOE), " (", switchDoubleOEImprovements, " improvements)")
+message("  - Mixed KD/OE combinations: ", nrow(switchDoubleMix), " (", switchDoubleMixImprovements, " improvements)")
+
+# Combine switch-gene results for comprehensive summary
+switchSingleKD$Mode <- "Knockdown"
+switchSingleOE$Mode <- "Overexpression"
+allSwitchResults <- rbind(
+  switchSingleKD[, c("Gene", "AgingScore", "Delta", "Success", "Mode")],
+  switchSingleOE[, c("Gene", "AgingScore", "Delta", "Success", "Mode")]
+)
+
+switchSuccessful <- allSwitchResults[allSwitchResults$Success & !is.na(allSwitchResults$Delta), ]
+switchImprovements <- switchSuccessful[switchSuccessful$Delta < -0.01, ]
+
+message("\nSwitch-gene target summary:")
+message("  - Total switch gene tests: ", nrow(allSwitchResults))
+message("  - Successful: ", nrow(switchSuccessful))
+message("  - Significant improvements: ", nrow(switchImprovements))
+
+if (nrow(switchImprovements) > 0) {
+  switchImprovements <- switchImprovements[order(switchImprovements$Delta), ]
+  message("\nTop 5 switch-gene targets:")
+  topSwitchTargets <- head(switchImprovements[, c("Gene", "Mode", "Delta")], 5)
+  print(topSwitchTargets)
+}
+
+message("\nPart 6 completed: Switch-gene-focused analysis complete")
+
+# =============================================================================
 # Save All Results
 # =============================================================================
 
@@ -530,25 +826,160 @@ if (config$saveResults) {
   # Part 4 outputs
   if (nrow(improvements) > 0) {
     saveObject(improvements, ptPaths$finalTargetRankings, config, "final target rankings")
-    
-    # Save pivot table for easy viewing
-    if (nrow(pivotTable) > 0) {
-      write.table(pivotTable, ptPaths$targetSummaryTsv, sep = "\t", row.names = FALSE, quote = FALSE)
-      message("Target summary saved: ", nrow(pivotTable), " prioritized targets")
-    }
+    write.table(pivotTable, ptPaths$targetSummaryTsv, sep = "\t", row.names = FALSE, quote = FALSE)
+    message("Target summary saved: ", nrow(pivotTable), " prioritized targets")
   } else {
     message("No targets to save")
   }
   
   # Part 5 outputs
   if (nrow(doubleKD) > 0) {
-    saveObject(doubleKD, ptPaths$doubleTargetsKD, config, "double KD results")
+    saveObject(doubleKD, ptPaths$doubleTargetsKD, config, "double gene KD results")
   }
   if (nrow(doubleOE) > 0) {
-    saveObject(doubleOE, ptPaths$doubleTargetsOE, config, "double OE results")
+    saveObject(doubleOE, ptPaths$doubleTargetsOE, config, "double gene OE results")
   }
   if (nrow(doubleMix) > 0) {
     saveObject(doubleMix, ptPaths$doubleTargetsMix, config, "mixed KD/OE results")
+  }
+  
+  # Part 6 outputs (switch-gene-focused) - Always save, regardless of improvements
+  saveObject(switchSingleKD, ptPaths$switchSingleTargetsKD, config, "switch gene single KD results")
+  saveObject(switchSingleOE, ptPaths$switchSingleTargetsOE, config, "switch gene single OE results")
+  
+  if (nrow(switchDoubleKD) > 0) {
+    saveObject(switchDoubleKD, ptPaths$switchDoubleTargetsKD, config, "switch gene double KD results")
+  }
+  if (nrow(switchDoubleOE) > 0) {
+    saveObject(switchDoubleOE, ptPaths$switchDoubleTargetsOE, config, "switch gene double OE results")
+  }
+  if (nrow(switchDoubleMix) > 0) {
+    saveObject(switchDoubleMix, ptPaths$switchDoubleTargetsMix, config, "switch gene mixed KD/OE results")
+  }
+  
+  # Generate switch-gene comprehensive summary (regardless of whether there are improvements)
+  message("Generating switch-gene target summary...")
+  
+  # Create comprehensive switch-gene results
+  allSwitchTargetsResults <- data.frame(
+    Rank = integer(),
+    Target = character(),
+    Type = character(),
+    AgingScore = numeric(),
+    Delta = numeric(),
+    SwitchDirection = character(),
+    Pseudotime = numeric(),
+    PseudoR2 = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Add single switch gene results (all successful results, not just improvements)
+  if (nrow(switchSingleKD) > 0) {
+    singleKDSwitch <- switchSingleKD[switchSingleKD$Success & !is.na(switchSingleKD$Delta), ]
+    if (nrow(singleKDSwitch) > 0) {
+      singleKDSwitchFormatted <- data.frame(
+        Target = singleKDSwitch$Gene,
+        Type = "Single KD",
+        AgingScore = singleKDSwitch$AgingScore,
+        Delta = singleKDSwitch$Delta,
+        SwitchDirection = singleKDSwitch$SwitchDirection,
+        Pseudotime = singleKDSwitch$Pseudotime,
+        PseudoR2 = singleKDSwitch$PseudoR2,
+        stringsAsFactors = FALSE
+      )
+      allSwitchTargetsResults <- rbind(allSwitchTargetsResults, singleKDSwitchFormatted)
+    }
+  }
+  
+  if (nrow(switchSingleOE) > 0) {
+    singleOESwitch <- switchSingleOE[switchSingleOE$Success & !is.na(switchSingleOE$Delta), ]
+    if (nrow(singleOESwitch) > 0) {
+      singleOESwitchFormatted <- data.frame(
+        Target = singleOESwitch$Gene,
+        Type = "Single OE",
+        AgingScore = singleOESwitch$AgingScore,
+        Delta = singleOESwitch$Delta,
+        SwitchDirection = singleOESwitch$SwitchDirection,
+        Pseudotime = singleOESwitch$Pseudotime,
+        PseudoR2 = singleOESwitch$PseudoR2,
+        stringsAsFactors = FALSE
+      )
+      allSwitchTargetsResults <- rbind(allSwitchTargetsResults, singleOESwitchFormatted)
+    }
+  }
+  
+  # Add double switch gene results
+  if (nrow(switchDoubleKD) > 0) {
+    switchDoubleKDValid <- switchDoubleKD[!is.na(switchDoubleKD$Delta), ]
+    if (nrow(switchDoubleKDValid) > 0) {
+      doubleKDSwitchFormatted <- data.frame(
+        Target = paste(switchDoubleKDValid$Gene1, "+", switchDoubleKDValid$Gene2),
+        Type = "Double KD",
+        AgingScore = switchDoubleKDValid$AgingScore,
+        Delta = switchDoubleKDValid$Delta,
+        SwitchDirection = NA_character_,
+        Pseudotime = NA_real_,
+        PseudoR2 = NA_real_,
+        stringsAsFactors = FALSE
+      )
+      allSwitchTargetsResults <- rbind(allSwitchTargetsResults, doubleKDSwitchFormatted)
+    }
+  }
+  
+  if (nrow(switchDoubleOE) > 0) {
+    switchDoubleOEValid <- switchDoubleOE[!is.na(switchDoubleOE$Delta), ]
+    if (nrow(switchDoubleOEValid) > 0) {
+      doubleOESwitchFormatted <- data.frame(
+        Target = paste(switchDoubleOEValid$Gene1, "+", switchDoubleOEValid$Gene2),
+        Type = "Double OE",
+        AgingScore = switchDoubleOEValid$AgingScore,
+        Delta = switchDoubleOEValid$Delta,
+        SwitchDirection = NA_character_,
+        Pseudotime = NA_real_,
+        PseudoR2 = NA_real_,
+        stringsAsFactors = FALSE
+      )
+      allSwitchTargetsResults <- rbind(allSwitchTargetsResults, doubleOESwitchFormatted)
+    }
+  }
+  
+  if (nrow(switchDoubleMix) > 0) {
+    switchDoubleMixValid <- switchDoubleMix[!is.na(switchDoubleMix$Delta), ]
+    if (nrow(switchDoubleMixValid) > 0) {
+      doubleMixSwitchFormatted <- data.frame(
+        Target = paste(switchDoubleMixValid$KD_Gene, "(KD) +", switchDoubleMixValid$OE_Gene, "(OE)"),
+        Type = "Mixed KD/OE",
+        AgingScore = switchDoubleMixValid$AgingScore,
+        Delta = switchDoubleMixValid$Delta,
+        SwitchDirection = NA_character_,
+        Pseudotime = NA_real_,
+        PseudoR2 = NA_real_,
+        stringsAsFactors = FALSE
+      )
+      allSwitchTargetsResults <- rbind(allSwitchTargetsResults, doubleMixSwitchFormatted)
+    }
+  }
+  
+  # Sort and rank by delta (best improvements first, then worst)
+  if (nrow(allSwitchTargetsResults) > 0) {
+    allSwitchTargetsResults <- allSwitchTargetsResults[order(allSwitchTargetsResults$Delta), ]
+    allSwitchTargetsResults$Rank <- 1:nrow(allSwitchTargetsResults)
+    
+    # Save comprehensive switch-gene summary
+    write.table(allSwitchTargetsResults, ptPaths$switchTargetSummaryTsv, sep = "\t", row.names = FALSE, quote = FALSE)
+    
+    message("Switch-gene target summary saved: ", nrow(allSwitchTargetsResults), " total switch-gene targets")
+    message("  - File: ", basename(ptPaths$switchTargetSummaryTsv))
+    
+    # Report best result if there are any improvements
+    if (allSwitchTargetsResults$Delta[1] < 0) {
+      message("  - Best switch target: ", allSwitchTargetsResults$Target[1], " (", allSwitchTargetsResults$Type[1], ")")
+      message("  - Best improvement: ", round(allSwitchTargetsResults$Delta[1], 4))
+    } else {
+      message("  - No improvements found (all deltas >= 0)")
+    }
+  } else {
+    message("No switch-gene results to save (all perturbations failed)")
   }
   
   # Generate comprehensive all-targets summary TSV
@@ -663,7 +1094,6 @@ if (config$saveResults) {
 
 # =============================================================================
 # Final Summary
-# =============================================================================
 
 message("\n" , paste(rep("=", 60), collapse = ""))
 message("PRISM ATTRACTOR ANALYSIS COMPLETE")
