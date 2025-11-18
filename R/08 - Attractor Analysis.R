@@ -1066,10 +1066,13 @@ if (config$saveResults) {
     allTargetsResults$Rank <- 1:nrow(allTargetsResults)
     
     # Calculate percent improvement relative to best result
-    if (allTargetsResults$Delta[1] < 0) {
-      allTargetsResults$PercentImprovement <- abs(allTargetsResults$Delta) * 100 / abs(allTargetsResults$Delta[1])
-    } else {
-      allTargetsResults$PercentImprovement <- 0
+    # Only for targets that actually improve (Delta < 0)
+    allTargetsResults$PercentImprovement <- 0
+    improveRows <- which(allTargetsResults$Delta < 0)
+    if (length(improveRows) > 0 && allTargetsResults$Delta[1] < 0) {
+      # Use absolute values for the calculation, but only for improvement rows
+      allTargetsResults$PercentImprovement[improveRows] <- 
+        abs(allTargetsResults$Delta[improveRows]) * 100 / abs(allTargetsResults$Delta[1])
     }
     
     # Save comprehensive summary

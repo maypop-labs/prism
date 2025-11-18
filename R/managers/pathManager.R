@@ -32,11 +32,28 @@ buildBasePaths <- function(config) {
 
 #' Build CellRanger input paths
 #' @param config Configuration object
-#' @return Vector of CellRanger paths for each sample
+#' @return Vector of CellRanger paths for each sample (either .h5 files or directories)
 #' @export
 buildCellrangerPaths <- function(config) {
   basePath <- paste0(config$rootPath, "cellranger_counts/")
-  paste0(basePath, config$donorIDs, "_output/outs/filtered_feature_bc_matrix/")
+  paths <- character(length(config$donorIDs))
+  
+  for (i in seq_along(config$donorIDs)) {
+    # Check for .h5 file first (newer format, more efficient)
+    h5Path <- paste0(basePath, config$donorIDs[i], "_output.h5")
+    dirPath <- paste0(basePath, config$donorIDs[i], "_output/outs/filtered_feature_bc_matrix/")
+    
+    if (file.exists(h5Path)) {
+      paths[i] <- h5Path
+    } else if (dir.exists(dirPath)) {
+      paths[i] <- dirPath
+    } else {
+      stop("No valid CellRanger data found for ", config$donorIDs[i], 
+           ". Expected either:\n  ", h5Path, "\n  or: ", dirPath)
+    }
+  }
+  
+  return(paths)
 }
 
 # =============================================================================
@@ -163,6 +180,8 @@ getTrajectoryFilePaths <- function(basePaths, cellType, trajectory) {
     switchDoubleTargetsMix  = paste0(basePaths$rds, basePrefix, "_switch_double_targets_KD_OE.rds"),
     switchTargetSummaryTsv  = paste0(basePaths$tsv, basePrefix, "_switch_target_summary.tsv"),
     
+    # Switch gene perturbation analysis (Script 11)
+    switchPerturbationAnalysisTsv = paste0(basePaths$tsv, basePrefix, "_switch_perturbation_analysis.tsv"),
     # Pro-aging (anti-hit) perturbation files
     proAgingSingleKD        = paste0(basePaths$rds, basePrefix, "_proaging_single_KD.rds"),
     proAgingSingleOE        = paste0(basePaths$rds, basePrefix, "_proaging_single_OE.rds"),

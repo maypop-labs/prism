@@ -31,7 +31,17 @@ doubletStats <- data.frame(
 for (i in seq_along(config$donorIDs)) {
   if (config$verbose) { message("Loading: ", config$donorIDs[i]) }
   
-  counts <- Read10X(data.dir = paths$cellranger[i])
+  # Detect file type and use appropriate loading function
+  if (dir.exists(paths$cellranger[i])) {
+    # Load from CellRanger directory structure
+    counts <- Read10X(data.dir = paths$cellranger[i])
+  } else if (file.exists(paths$cellranger[i]) && grepl("\\.h5$", paths$cellranger[i])) {
+    # Load from HDF5 file
+    counts <- Read10X_h5(filename = paths$cellranger[i])
+  } else {
+    stop("Invalid CellRanger path: ", paths$cellranger[i])
+  }
+  
   obj <- CreateSeuratObject(counts = counts, project = config$donorIDs[i])
   obj$donorID <- config$donorIDs[i]
   obj$age <- config$ages[i]
