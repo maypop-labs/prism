@@ -167,11 +167,11 @@ getRootCells <- function(cds, rootAge) {
 #' cds <- runPseudotime(cds, rootCells, verbose = TRUE)
 #' pt <- pseudotime(cds)
 #' }
-runPseudotime <- function(cds, rootCells, verbose = TRUE) {
+runPseudotime <- function(cds, rootCells, verbose = TRUE, minBranchLen = 10) {
   cds <- preprocess_cds(cds, method = "PCA", num_dim = 50, norm_method = "log", scaling = TRUE, verbose = verbose)
   cds <- reduce_dimension(cds, reduction_method = "UMAP", preprocess_method = "PCA", verbose = verbose)
   cds <- cluster_cells(cds, reduction_method = "UMAP", cluster_method = "leiden", verbose = verbose)
-  cds <- learn_graph(cds)
+  cds <- learn_graph(cds, learn_graph_control = list(minimal_branch_len = minBranchLen))
   order_cells(cds, reduction_method = "UMAP", root_cells = rootCells)
 }
 

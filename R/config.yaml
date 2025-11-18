@@ -216,6 +216,16 @@ seuratScaleFactor: 100000
 # @doc: Donor Normalization
 # @info: Parameters for equalizing donor representation within cell types to prevent bias
 
+# @param: normalizeDonors
+# @type: boolean
+# @description: Master switch to enable or disable donor normalization within cell types.
+# When true, applies downsampling to achieve perfect donor balance per cell type.
+# When false, skips normalization entirely and proceeds with original cell counts.
+# Set to false when donor imbalance reflects biological signal rather than technical artifact (e.g., ovarian follicle cells varying by menopausal status).
+# @suggested: [true, false]
+# @rationale: true for most analyses where donor balance prevents batch effects, false when biological variation in cell type abundance across donors is the signal of interest (e.g., age-related tissue changes)
+normalizeDonors: true
+
 # @param: normFloorCells
 # @type: integer
 # @description: Minimum acceptable number of cells per donor per cell type for normalization.
@@ -254,6 +264,16 @@ singleRNumberOfFeatures: 2000
 # @suggested: [0.3, 0.4, 0.5, 0.6]
 # @rationale: 0.3 as an absolute minumum, 0.4 for exploratory analysis, 0.5 for standard aging studies, 0.6 for stringent validation of age-related trajectories
 pseudotimeMinAgeCorrelation: 0.3
+
+# @param: pseudotimeMinBranchLen
+# @type: integer
+# @description: Minimum branch length for Monocle3 trajectory graph learning.
+# Higher values create simpler trajectories with fewer branches, lower values allow more complex branching.
+# Controls how aggressively Monocle3 prunes small trajectory branches that extend into empty regions of UMAP space.
+# Prevents overfitting where graph topology creates branches that don't contain actual cells.
+# @suggested: [5, 10, 15, 20]
+# @rationale: 5 for detailed trajectories with many branches (may include empty branches), 10 for standard trajectory inference (balances complexity and cell coverage), 15 for simplified trajectories (removes most spurious branches), 20 for very simple trajectories with only major branches
+pseudotimeMinBranchLen: 10
 
 # @doc: GeneSwitches Analysis
 # @info: GeneSwitches logistic modeling parameters for switch-like gene behavior detection

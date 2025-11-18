@@ -27,10 +27,13 @@ cds <- convertSeuratToCDS(seuratObj)
 rootAge = min(config$ages, na.rm = TRUE)
 
 # --- Pseudotime Rooting ---
-if (config$verbose) { message("Running pseudotime analysis from age ", rootAge) }
+if (config$verbose) { 
+  message("Running pseudotime analysis from age ", rootAge)
+  message("Using minimal_branch_len = ", config$pseudotimeMinBranchLen)
+}
 rootCells <- getRootCells(cds, rootAge)
 if (length(rootCells) == 0) { stop("No cells found for root age: ", rootAge) }
-cds <- runPseudotime(cds, rootCells, verbose = config$verbose)
+cds <- runPseudotime(cds, rootCells, verbose = config$verbose, minBranchLen = config$pseudotimeMinBranchLen)
 
 # --- Identify Valid Branches ---
 if (config$verbose) { message("Searching for trajectory branches with high age correlation") }
@@ -85,6 +88,14 @@ for (leaf in leafNodes) {
 }
 
 # ---- Post‑processing of Branch Statistics ---
+# First print ALL branch statistics before any filtering
+if (nrow(branch_stats) > 0) {
+  message("\n=== All Detected Branches (before filtering) ===")
+  print(branch_stats[, c("leaf", "corWithAge", "pValue", "nCells", "nDonors", "method")])
+} else {
+  message("\n=== No trajectory branches detected by Monocle3 ===")
+}
+
 branch_stats <- branch_stats |>
   dplyr::filter(!is.na(corWithAge) & corWithAge >= 0) |>
   dplyr::arrange(dplyr::desc(corWithAge))
@@ -92,9 +103,13 @@ branch_stats <- branch_stats |>
 # --- Check for Valid Trajectories ---
 if (retained == 0) {
   warning("No valid trajectories found for cell type: ", cellType)
-  message("Correlation threshold: r >= ", config$pseudotimeMinAgeCorrelation, ", p < 0.05")
-  message("\nActual correlations achieved:")
-  print(branch_stats[, c("leaf", "corWithAge", "pValue", "nCells", "nDonors")])
+  message("\nCorrelation threshold: r >= ", config$pseudotimeMinAgeCorrelation, ", p < 0.05")
+  message("\nBranches passing filter (corWithAge >= 0 and not NA):")
+  if (nrow(branch_stats) > 0) {
+    print(branch_stats[, c("leaf", "corWithAge", "pValue", "nCells", "nDonors")])
+  } else {
+    message("  (none - all branches had negative or NA correlations)")
+  }
   
   if (config$saveResults) {
     # Save diagnostic information in a safe format

@@ -279,13 +279,15 @@ getNormalizationMetadata <- function(seuratObj) {
 #' @param seuratObj Seurat object with donor and cell type metadata
 #' @param donorColumn Name of donor metadata column (default: "donorID")
 #' @param cellTypeColumn Name of cell type metadata column (default: "cellType")
+#' @param showDetailed Logical indicating whether to print detailed per-donor counts (default: TRUE)
 #'
 #' @return Data frame with donor statistics per cell type
 #' @export
 reportDonorStats <- function(
   seuratObj,
   donorColumn = "donorID",
-  cellTypeColumn = "cellType"
+  cellTypeColumn = "cellType",
+  showDetailed = TRUE
 ) {
   
   # Build contingency table
@@ -306,6 +308,20 @@ reportDonorStats <- function(
   # Sort by total cells descending
   stats <- stats[order(stats$totalCells, decreasing = TRUE), ]
   rownames(stats) <- NULL
+  
+  # Print detailed per-donor counts if requested
+  if (showDetailed) {
+    message("\n=== Per-Donor Cell Counts by Cell Type ===")
+    for (ct in stats$cellType) {
+      donorCounts <- counts[ct, ]
+      donorCounts <- donorCounts[donorCounts > 0]  # Only show donors with cells
+      message("\n", ct, " (total: ", stats$totalCells[stats$cellType == ct], ")")
+      for (dn in names(donorCounts)) {
+        message("  ", dn, ": ", donorCounts[dn], " cells")
+      }
+    }
+    message("\n")
+  }
   
   return(stats)
 }
