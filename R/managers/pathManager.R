@@ -17,7 +17,7 @@ buildBasePaths <- function(config) {
   
   list(
     root = rootPath,
-    cellranger = paste0(rootPath, "cellranger_counts/"),
+    cellranger = paste0(rootPath, "counts/"),
     results    = paste0(rootPath, "results/"),
     json       = paste0(rootPath, "results/json/"),
     plots      = paste0(rootPath, "results/plots/"),
@@ -35,7 +35,7 @@ buildBasePaths <- function(config) {
 #' @return Vector of CellRanger paths for each sample (.h5 files, directories, or .csv files)
 #' @export
 buildCellrangerPaths <- function(config) {
-  basePath <- paste0(config$rootPath, "cellranger_counts/")
+  basePath <- paste0(config$rootPath, "counts/")
   paths <- character(length(config$donorIDs))
   
   for (i in seq_along(config$donorIDs)) {
