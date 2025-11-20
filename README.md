@@ -100,19 +100,16 @@ The pipeline creates a `results/` folder at `{rootPath}` with the following stru
 
 ```
 results/
-├── celltype_name/
-│   ├── rds/           # R data objects (.rds files)
-│   ├── tsv/           # Tab-separated value tables
-│   ├── txt/           # Text reports and logs
-│   ├── plots/         # Visualization plots (.png files)
-│   └── Y_###/         # Trajectory-specific results
-│       ├── rds/
-│       ├── tsv/
-│       ├── txt/
-│       ├── plots/
-│       └── int/       # Intermediate files (SCENIC checkpoints)
-├── logs/              # Pipeline execution logs
-└── config_snapshots/  # Timestamped config.yaml snapshots
+└── celltype_name/
+   ├── rds/           # R data objects (.rds files)
+   ├── tsv/           # Tab-separated value tables
+   ├── txt/           # Text reports and logs
+   ├── plots/         # Visualization plots (.png files)
+   ├── rds/           # R data files
+   ├── tsv/           # Tab-separated value files (tables)
+   ├── txt/           # Output logs
+   ├── plots/         # plots
+   └── scenic/        # Intermediate files (SCENIC checkpoints)
 ```
 
 ## Key Features
@@ -200,41 +197,6 @@ If you use PRISM in your research, please cite:
   - GeneSwitches: Psarras et al. (2021) Bioinformatics
   - SCENIC: Aibar et al. (2017) Nature Methods
   - BoolNet: Müssel et al. (2010) Bioinformatics
-
-## Project Structure
-
-```
-prism/
-├── README.md                                    # This file
-├── R/                                          # All R scripts and configuration
-│   ├── setup_environment.R                     # Install dependencies (run first!)
-│   ├── config.yaml                             # Configuration file (edit this!)
-│   ├── 01 - Loading, Aggregation, and Quality Control.R
-│   ├── 02 - Cell Type Identification.R
-│   ├── ... (numbered pipeline scripts)
-│   └── managers/                               # Helper modules
-│       ├── pathManager.R                       # Centralized path management
-│       ├── setupManager.R                      # Environment setup
-│       ├── uiManager.R                         # User interaction
-│       └── attractorManager.R                  # Attractor analysis functions
-├── claude/                                     # AI assistant memory/documentation
-│   └── *.md                                    # Project summaries and progress
-├── R Style Guide.md                            # Code style conventions
-├── YAML Documentation Comment Standard.md      # Config documentation standard
-├── PRISM - Project Overview.md                # Detailed script descriptions
-└── Logo.png                                    # Project logo
-```
-
-## License
-
-[License information to be added]
-
-## Authors
-
-Maypop Labs  
-[Contact information to be added]
-
----
 
 **Last Updated**: November 2025  
 **Version**: 1.0
