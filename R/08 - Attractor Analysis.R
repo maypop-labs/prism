@@ -214,53 +214,64 @@ if (config$saveResults) {
   message("=== TSV export complete ===\n")
 }
 scorePerturbationRobust <- function(network, geneNames, values, youngVec, oldVec) {
-  perturbedNet <- fixGenes(network, fixIndices = geneNames, values = values)
-  
-  attractorResults <- getAttractors(perturbedNet, method = "random", 
-                                   startStates = 100, type = "synchronous")
-  
-  if (length(attractorResults$attractors) == 0) {
-    return(list(score = NA_real_, success = FALSE))
-  }
-  
-  # Compute weighted aging score
-  ageScores <- numeric(length(attractorResults$attractors))
-  basinSizes <- numeric(length(attractorResults$attractors))
-  
-  for (i in seq_along(attractorResults$attractors)) {
-    attractor <- attractorResults$attractors[[i]]
+  tryCatch({
+    perturbedNet <- fixGenes(network, fixIndices = geneNames, values = values)
     
-    if (length(attractor$involvedStates) > 0) {
-      decoded <- decodeBigIntegerState(attractor$involvedStates[[1]], 
-                                      length(network$genes))
-      names(decoded) <- network$genes
-      
-      commonGenes <- intersect(names(decoded), names(youngVec))
-      if (length(commonGenes) > 0) {
-        decodedSub <- decoded[commonGenes]
-        youngSub <- youngVec[commonGenes]
-        oldSub <- oldVec[commonGenes]
-        
-        numerator <- sum((decodedSub - youngSub) * (oldSub - youngSub), na.rm = TRUE)
-        denominator <- sum((oldSub - youngSub)^2, na.rm = TRUE)
-        
-        ageScores[i] <- if (denominator > 1e-10) numerator / denominator else 0.5
-      } else {
-        ageScores[i] <- 0.5
-      }
-      
-      basinSizes[i] <- attractor$basinSize %||% 1
+    attractorResults <- getAttractors(perturbedNet, method = "random", 
+                                     startStates = 100, type = "synchronous")
+    
+    if (length(attractorResults$attractors) == 0) {
+      return(list(score = NA_real_, success = FALSE))
     }
-  }
-  
-  if (sum(basinSizes) > 0) {
-    basinFractions <- basinSizes / sum(basinSizes)
-    weightedScore <- sum(basinFractions * ageScores, na.rm = TRUE)
-  } else {
-    weightedScore <- mean(ageScores, na.rm = TRUE)
-  }
-  
-  return(list(score = weightedScore, success = TRUE))
+    
+    # Compute weighted aging score
+    ageScores <- numeric(length(attractorResults$attractors))
+    basinSizes <- numeric(length(attractorResults$attractors))
+    
+    for (i in seq_along(attractorResults$attractors)) {
+      attractor <- attractorResults$attractors[[i]]
+      
+      if (length(attractor$involvedStates) > 0) {
+        decoded <- decodeBigIntegerState(attractor$involvedStates[[1]], 
+                                        length(network$genes))
+        names(decoded) <- network$genes
+        
+        # Check for NA values in decoded state
+        if (any(is.na(decoded))) {
+          return(list(score = NA_real_, success = FALSE))
+        }
+        
+        commonGenes <- intersect(names(decoded), names(youngVec))
+        if (length(commonGenes) > 0) {
+          decodedSub <- decoded[commonGenes]
+          youngSub <- youngVec[commonGenes]
+          oldSub <- oldVec[commonGenes]
+          
+          numerator <- sum((decodedSub - youngSub) * (oldSub - youngSub), na.rm = TRUE)
+          denominator <- sum((oldSub - youngSub)^2, na.rm = TRUE)
+          
+          ageScores[i] <- if (denominator > 1e-10) numerator / denominator else 0.5
+        } else {
+          ageScores[i] <- 0.5
+        }
+        
+        basinSizes[i] <- attractor$basinSize %||% 1
+      }
+    }
+    
+    if (sum(basinSizes) > 0) {
+      basinFractions <- basinSizes / sum(basinSizes)
+      weightedScore <- sum(basinFractions * ageScores, na.rm = TRUE)
+    } else {
+      weightedScore <- mean(ageScores, na.rm = TRUE)
+    }
+    
+    return(list(score = weightedScore, success = TRUE))
+    
+  }, error = function(e) {
+    # Silently catch BoolNet errors during perturbation
+    return(list(score = NA_real_, success = FALSE))
+  })
 }
 
 # Single gene perturbation analysis

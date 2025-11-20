@@ -19,7 +19,7 @@
 # @type: string (path)
 # @description: Base directory containing cellranger_counts folder and where all analysis results are written.
 # Must contain cellranger_counts subfolder with 10X Genomics output files.
-rootPath: "E:/datasets/omics/ovary/"
+rootPath: "E:/datasets/omics/testis/"
 
 # @param: rcisTargetPath
 # @type: string (path)
@@ -35,28 +35,18 @@ rcisTargetPath: "E:/var/rcistarget/"
 # @description: Chronological ages in years corresponding to each donor sample in the experiment.
 # Must match the number and order of donorIDs.
 ages:
-  - 23
-  - 27
-  - 28
-  - 29
-  - 49
-  - 51
-  - 52
-  - 54
+  - 26
+  - 56
+  - 67
 
 # @param: donorIDs
 # @type: list[string]
 # @description: Unique identifiers for each donor sample used in file naming and metadata tracking.
 # Must match the number and order of ages, used to locate cellranger_counts subfolders.
 donorIDs:
-  - "23yo"
-  - "27yo"
-  - "28yo"
-  - "29yo"
-  - "49yo"
-  - "51yo"
-  - "52yo"
-  - "54yo"
+  - "26yo"
+  - "56yo"
+  - "67yo"
 
 # @doc: System Resources
 # @info: System resource allocation and computation environment settings

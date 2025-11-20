@@ -35,9 +35,21 @@ for (i in seq_along(config$donorIDs)) {
   if (dir.exists(paths$cellranger[i])) {
     # Load from CellRanger directory structure
     counts <- Read10X(data.dir = paths$cellranger[i])
-  } else if (file.exists(paths$cellranger[i]) && grepl("\\.h5$", paths$cellranger[i])) {
-    # Load from HDF5 file
-    counts <- Read10X_h5(filename = paths$cellranger[i])
+    
+  } else if (file.exists(paths$cellranger[i])) {
+    # File exists - determine type by extension
+    if (grepl("\\.h5$", paths$cellranger[i])) {
+      # Load from HDF5 file
+      counts <- Read10X_h5(filename = paths$cellranger[i])
+      
+    } else if (grepl("\\.csv$", paths$cellranger[i])) {
+      # Load from CSV file
+      counts <- readCsvMatrix(paths$cellranger[i])
+      
+    } else {
+      stop("Unsupported file type: ", paths$cellranger[i])
+    }
+    
   } else {
     stop("Invalid CellRanger path: ", paths$cellranger[i])
   }

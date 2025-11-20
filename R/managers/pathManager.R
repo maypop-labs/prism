@@ -32,28 +32,53 @@ buildBasePaths <- function(config) {
 
 #' Build CellRanger input paths
 #' @param config Configuration object
-#' @return Vector of CellRanger paths for each sample (either .h5 files or directories)
+#' @return Vector of CellRanger paths for each sample (.h5 files, directories, or .csv files)
 #' @export
 buildCellrangerPaths <- function(config) {
   basePath <- paste0(config$rootPath, "cellranger_counts/")
   paths <- character(length(config$donorIDs))
   
   for (i in seq_along(config$donorIDs)) {
-    # Check for .h5 file first (newer format, more efficient)
+    # Priority order: .h5 > directory > .csv
+    # .h5 is most efficient, directory is traditional CellRanger, CSV is fallback
     h5Path <- paste0(basePath, config$donorIDs[i], "_output.h5")
     dirPath <- paste0(basePath, config$donorIDs[i], "_output/outs/filtered_feature_bc_matrix/")
+    csvPattern <- paste0(basePath, config$donorIDs[i], "*.csv")
     
     if (file.exists(h5Path)) {
       paths[i] <- h5Path
     } else if (dir.exists(dirPath)) {
       paths[i] <- dirPath
     } else {
-      stop("No valid CellRanger data found for ", config$donorIDs[i], 
-           ". Expected either:\n  ", h5Path, "\n  or: ", dirPath)
+      # Check for CSV files using pattern matching
+      csvFiles <- Sys.glob(csvPattern)
+      if (length(csvFiles) > 0) {
+        paths[i] <- csvFiles[1]  # Take first match
+      } else {
+        stop("No valid CellRanger data found for ", config$donorIDs[i], 
+             "\nExpected one of:\n  ", h5Path, 
+             "\n  ", dirPath,
+             "\n  ", csvPattern)
+      }
     }
   }
   
   return(paths)
+}
+
+#' Read CSV matrix file from Human Cell Atlas or similar format
+#' @param csvPath Path to CSV file
+#' @return Sparse matrix compatible with CreateSeuratObject
+#' @export
+readCsvMatrix <- function(csvPath) {
+  # Read CSV with genes as rows, cells as columns
+  # First row contains cell barcodes, first column contains gene names
+  mat <- read.csv(csvPath, row.names = 1, check.names = FALSE)
+  
+  # Convert to sparse matrix (more memory efficient for scRNA-seq data)
+  mat <- as(as.matrix(mat), "sparseMatrix")
+  
+  return(mat)
 }
 
 # =============================================================================
