@@ -39,26 +39,45 @@ buildCellrangerPaths <- function(config) {
   paths <- character(length(config$donorIDs))
   
   for (i in seq_along(config$donorIDs)) {
-    # Priority order: .h5 > directory > .csv
+    # Priority order: exact match > _output suffix (for backward compatibility)
+    # Within each tier: .h5 > directory > .csv
     # .h5 is most efficient, directory is traditional CellRanger, CSV is fallback
-    h5Path <- paste0(basePath, config$donorIDs[i], "_output.h5")
-    dirPath <- paste0(basePath, config$donorIDs[i], "_output/outs/filtered_feature_bc_matrix/")
-    csvPattern <- paste0(basePath, config$donorIDs[i], "*.csv")
     
-    if (file.exists(h5Path)) {
-      paths[i] <- h5Path
-    } else if (dir.exists(dirPath)) {
-      paths[i] <- dirPath
+    # Try exact matches first (for UUID-based naming)
+    h5PathExact <- paste0(basePath, config$donorIDs[i], ".h5")
+    dirPathExact <- paste0(basePath, config$donorIDs[i], "/outs/filtered_feature_bc_matrix/")
+    csvPatternExact <- paste0(basePath, config$donorIDs[i], ".csv")
+    
+    # Try _output suffix (for backward compatibility)
+    h5PathOutput <- paste0(basePath, config$donorIDs[i], "_output.h5")
+    dirPathOutput <- paste0(basePath, config$donorIDs[i], "_output/outs/filtered_feature_bc_matrix/")
+    csvPatternOutput <- paste0(basePath, config$donorIDs[i], "*.csv")
+    
+    # Check in priority order
+    if (file.exists(h5PathExact)) {
+      paths[i] <- h5PathExact
+    } else if (dir.exists(dirPathExact)) {
+      paths[i] <- dirPathExact
+    } else if (file.exists(csvPatternExact)) {
+      paths[i] <- csvPatternExact
+    } else if (file.exists(h5PathOutput)) {
+      paths[i] <- h5PathOutput
+    } else if (dir.exists(dirPathOutput)) {
+      paths[i] <- dirPathOutput
     } else {
-      # Check for CSV files using pattern matching
-      csvFiles <- Sys.glob(csvPattern)
+      # Check for CSV files using pattern matching (wildcard fallback)
+      csvFiles <- Sys.glob(csvPatternOutput)
       if (length(csvFiles) > 0) {
         paths[i] <- csvFiles[1]  # Take first match
       } else {
         stop("No valid CellRanger data found for ", config$donorIDs[i], 
-             "\nExpected one of:\n  ", h5Path, 
-             "\n  ", dirPath,
-             "\n  ", csvPattern)
+             "\nExpected one of:",
+             "\n  ", h5PathExact,
+             "\n  ", dirPathExact,
+             "\n  ", csvPatternExact,
+             "\n  ", h5PathOutput, 
+             "\n  ", dirPathOutput,
+             "\n  ", csvPatternOutput)
       }
     }
   }

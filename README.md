@@ -36,9 +36,16 @@ Single-cell RNA sequencing data should be:
   - `.csv` files (gene-by-cell matrices)
 
 **File Naming Convention:**
-Files or folders must be named using the `donorID` values from `config.yaml`, followed by `_output`:
+Files or folders should match the `donorID` values from `config.yaml`. The pipeline checks for exact matches first, then falls back to `{donorID}_output` for backward compatibility:
+
+*Preferred (exact match):*
+- Example: `26yo.h5` or `abc-123-uuid.h5`
+- Example: `26yo/` or `abc-123-uuid/` (folder with CellRanger files)
+- Example: `26yo.csv` or `abc-123-uuid.csv`
+
+*Legacy (backward compatible):*
 - Example: `26yo_output.h5`
-- Example: `56yo_output` (folder with CellRanger files)
+- Example: `56yo_output/` (folder with CellRanger files)
 - Example: `67yo_output.csv`
 
 ### 3. Configuration
@@ -163,7 +170,7 @@ Total pipeline runtime: **1-3 days per cell type** depending on complexity.
 
 **"Cannot find cellranger_counts folder"**
 - Ensure `rootPath` in config.yaml points to the directory containing `counts/` subfolder
-- Check that files are named correctly: `{donorID}_output.h5` or `{donorID}_output/`
+- Check that files are named correctly: `{donorID}.h5`, `{donorID}/`, or legacy `{donorID}_output.h5`, `{donorID}_output/`
 
 **"No trajectories passed correlation threshold"**
 - Consider lowering `pseudotimeMinAgeCorrelation` (minimum 0.3)

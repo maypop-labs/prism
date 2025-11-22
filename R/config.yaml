@@ -19,7 +19,7 @@
 # @type: string (path)
 # @description: Base directory containing cellranger_counts folder and where all analysis results are written.
 # Must contain cellranger_counts subfolder with 10X Genomics output files.
-rootPath: "E:/datasets/omics/testis/"
+rootPath: "E:/datasets/omics/skeletal_muscle/"
 
 # @param: rcisTargetPath
 # @type: string (path)
@@ -35,18 +35,46 @@ rcisTargetPath: "E:/var/rcistarget/"
 # @description: Chronological ages in years corresponding to each donor sample in the experiment.
 # Must match the number and order of donorIDs.
 ages:
-  - 26
-  - 56
-  - 67
+  - 75
+  - 76
+  - 75
+  - 79
+  - 20
+  - 82
+  - 72
+  - 21
+  - 70
+  - 21
+  - 75
+  - 72
+  - 19
+  - 79
+  - 22
+  - 21
+  - 90
 
 # @param: donorIDs
 # @type: list[string]
 # @description: Unique identifiers for each donor sample used in file naming and metadata tracking.
 # Must match the number and order of ages, used to locate cellranger_counts subfolders.
 donorIDs:
-  - "26yo"
-  - "56yo"
-  - "67yo"
+ - "GSM5098737_HM1"
+ - "GSM5098738_HM2"
+ - "GSM5098739_HM3"
+ - "GSM5098740_HM4"
+ - "GSM5098741_HM5"
+ - "GSM5098742_HM6"
+ - "GSM5098743_HM7"
+ - "GSM5098744_HM8"
+ - "GSM5098745_HM9"
+ - "GSM5098746_HM10"
+ - "GSM5098747_HM11"
+ - "GSM5098748_HM12"
+ - "GSM5098749_HM13"
+ - "GSM5098750_HM15"
+ - "GSM5098751_HM21"
+ - "GSM5098752_HM22"
+ - "GSM5098753_HM23"
 
 # @doc: System Resources
 # @info: System resource allocation and computation environment settings
